@@ -224,10 +224,16 @@ function dest(row, url) {
   const c = BY_KEY[row.category];
   return c ? '/' + c.slug : '/';
 }
-async function goTo(env, ctx, id, url) {
+const BOTS = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|telegram|discord|curl|wget|python|headless/i;
+async function goTo(env, ctx, req, id, url) {
   const row = await env.DB.prepare("SELECT id, url, target_url, category, wp_id FROM items WHERE id = ? AND status = 'published'").bind(id).first();
   if (!row) return redirect('/', 302);
-  ctx.waitUntil(env.DB.prepare('UPDATE items SET clicks = clicks + 1 WHERE id = ?').bind(id).run());
+  if (req.method === 'GET' && !BOTS.test(req.headers.get('user-agent') || '')) {
+    ctx.waitUntil(env.DB.batch([
+      env.DB.prepare('UPDATE items SET clicks = clicks + 1 WHERE id = ?').bind(id),
+      env.DB.prepare('INSERT INTO clicks (item_id, at, preview) VALUES (?, ?, ?)').bind(id, new Date().toISOString(), url.hostname.endsWith('.workers.dev') ? 1 : 0)
+    ]));
+  }
   return redirect(dest(row, url), 302);
 }
 async function legacy(env, slug, url) {
@@ -331,12 +337,12 @@ async function route(req, url, env, ctx, preview) {
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') return text('Method not allowed', 405);
   if (p === '/') return html(await renderPage(env, null, preview));
-  if (p === '/robots.txt') return text(preview ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /desk\n\nSitemap: ${SITE}/sitemap.xml\n`);
+  if (p === '/robots.txt') return text(preview ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /desk\nDisallow: /go/\n\nSitemap: ${SITE}/sitemap.xml\n`);
   if (p === '/sitemap.xml') return xml(sitemap());
   if (p === '/llms.txt') return text(llms());
   if (p === '/status') return json(await status(env));
   const go = p.match(/^\/go\/(\d+)$/);
-  if (go) return goTo(env, ctx, Number(go[1]), url);
+  if (go) return goTo(env, ctx, req, Number(go[1]), url);
   const oldCat = p.match(/^\/category\/([a-z0-9-]+)\/?$/);
   if (oldCat && BY_SLUG[oldCat[1]]) return redirect('/' + oldCat[1], 301);
   const slug = decodeURIComponent(p.replace(/^\/+|\/+$/g, ''));

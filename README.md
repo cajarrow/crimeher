@@ -17,7 +17,7 @@ One Cloudflare Worker and one D1 database. There's no build step and no framewor
 | `src/sources.js` | The feed list. Bump `SOURCES_VERSION` after editing it, so the next run syncs it to the database. |
 | `src/feeds.js` | Checks due feeds (each about every 15 minutes), parses RSS and Atom, and stores new items. Items older than 24 hours are stored as `stale`. General-news feeds must pass a crime keyword filter. A feed that fails 6 checks in a row turns itself off. |
 | `src/ai.js` | The AI step. Claude (`claude-haiku-5-5`) applies the Editorial Rules, writes the headline, picks the category, and decides publish, hold or reject. The code enforces the hold rules, the 5-per-outlet daily cap and the last-resort list. |
-| `migrations/` | D1 schema. Migrations 0001–0003 were applied through the Cloudflare API on Nov 5, 2026, so Wrangler's migration table doesn't list them. Don't re-run them. |
+| `migrations/` | D1 schema. Migrations 0001–0004 were applied through the Cloudflare API on Nov 5, 2026, so Wrangler's migration table doesn't list them. Don't re-run them. |
 | `test/` | Parser tests: `npm test`. |
 | `wrangler.jsonc` | Worker name, D1 binding `DB`, cron schedule. |
 | `data/` | Reference data: the Feedly export from Nov 5, 2026. |

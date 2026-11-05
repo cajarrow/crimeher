@@ -109,7 +109,37 @@ button:disabled{opacity:.5}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;border-radius:14px;padding:12px 14px 12px 16px;display:flex;gap:14px;align-items:center;font-weight:600;transition:transform .25s;z-index:10;max-width:calc(100% - 32px)}
 .toast.on{transform:translateX(-50%) translateY(0)}
 .toast button{height:36px;padding:0 12px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);font-size:14px}
-@media (prefers-reduced-motion:reduce){.card,.toast{transition:none}}`;
+@media (prefers-reduced-motion:reduce){.card,.toast{transition:none}}
+.stats-main{max-width:720px;margin:0 auto;padding:12px 12px 40px}
+.chips{display:flex;gap:6px;overflow-x:auto;margin:4px 0 10px;scrollbar-width:none}
+.chip{flex:none;display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:18px;background:#fff;border:1px solid var(--line);font-size:14px;font-weight:700;text-decoration:none;color:var(--ink)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.note{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#FFF8E6;font-size:13px;line-height:1.45;color:#5C4813}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.tile{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.tv{font-size:28px;font-weight:800;letter-spacing:-.5px;line-height:1.1;font-variant-numeric:tabular-nums}
+.tl{margin-top:2px;font-size:12px;font-weight:600;color:var(--muted)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.panel h2{margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.rank{margin:0;padding:0;list-style:none;counter-reset:r}
+.rank li{counter-increment:r;position:relative;padding:10px 0 10px 30px;border-top:1px solid var(--soft)}
+.rank li:first-child{border-top:0}
+.rank li::before{content:counter(r);position:absolute;left:0;top:10px;width:22px;font-size:14px;font-weight:800;color:var(--muted);text-align:right}
+.rank .h{display:block;font-size:15px;font-weight:600;line-height:1.32}
+.rank .m{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.rank .m b{color:var(--ink)}
+.bars{margin:0;padding:0;list-style:none}
+.bars li{display:grid;grid-template-columns:7.5em 1fr 3em;align-items:center;gap:10px;min-height:32px}
+.bl{font-size:13px;font-weight:600}
+.bt{height:10px;border-radius:0 4px 4px 0;background:var(--soft);overflow:hidden}
+.bf{display:block;height:100%;background:var(--ink);border-radius:0 4px 4px 0}
+.bv{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.plain{margin:0;padding:0;list-style:none}
+.plain li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--soft);font-size:14px}
+.plain li:first-child{border-top:0}
+.plain b{font-variant-numeric:tabular-nums}
+.none{margin:4px 0;color:var(--muted);font-size:14px}
+@media (min-width:760px){.tiles{grid-template-columns:repeat(4,1fr)}}`;
 
 function page(title, body, script) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><title>${e(title)}</title><meta name="theme-color" content="#ffffff"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="CH Desk"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,800&display=swap"><style>${DESK_CSS}</style></head><body>${body}${script ? `<script>${script}</script>` : ''}</body></html>`;
@@ -132,8 +162,14 @@ const REASON_LABEL = {
 
 export async function renderDesk(env, url, user, CATS) {
   const now = Date.now();
-  const view = url.searchParams.get('view') === 'live' ? 'live' : 'held';
+  const v = url.searchParams.get('view');
+  const view = v === 'live' ? 'live' : v === 'stats' ? 'stats' : 'held';
   const dayAgo = new Date(now - 86400000).toISOString();
+  if (view === 'stats') {
+    const c = (await env.DB.prepare(`SELECT SUM(status = 'held') AS held, SUM(status = 'published' AND published_at > ?) AS live24, SUM(status = 'rejected' AND decided_at > ? AND COALESCE(ai_reason, '') NOT LIKE 'desk:%') AS rej24 FROM items WHERE wp_id IS NULL`).bind(dayAgo, dayAgo).first()) || {};
+    const main = await renderStats(env, url, CATS, now);
+    return respond(page('CrimeHer Desk: Stats', deskHeader('stats', c) + `<main class="stats-main">${main}</main>`));
+  }
   const [rows, counts] = await env.DB.batch([
     view === 'held'
       ? env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, summary_raw, hold_reason, source_published_at, decided_at FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
@@ -155,10 +191,75 @@ ${why ? `<div class="why">${why}</div>` : ''}<div class="src"><b>${e(r.title_raw
   const empty = view === 'held'
     ? `<div class="empty"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#E5F4E4"/><path d="M15 25l6 6 12-14" stroke="#1E6B3A" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>All clear</b>Nothing is waiting for you.</div>`
     : `<div class="empty"><b>Nothing live yet</b>New headlines show up here as they publish.</div>`;
-  const body = `<header class="top"><div class="row1"><a class="mark" href="/desk">crimeher<small>Desk</small></a><div class="stats">${c.live24 || 0} live today &middot; ${c.rej24 || 0} rejected by AI</div></div>
-<nav class="tabs"><a class="tab${view === 'held' ? ' on' : ''}" href="/desk">Waiting <span class="n" id="n">${c.held || 0}</span></a><a class="tab${view === 'live' ? ' on' : ''}" href="/desk?view=live">Live</a></nav></header>
+  const body = deskHeader(view, c) + `
 <main id="list">${cards || empty}</main><div class="toast" id="toast" role="status"><span id="tmsg"></span><button type="button" id="undo">Undo</button></div>`;
   return respond(page('CrimeHer Desk', body, DESK_JS(view)));
+}
+
+function deskHeader(view, c) {
+  const tab = (key, href, label) => `<a class="tab${view === key ? ' on' : ''}" href="${href}"${view === key ? ' aria-current="page"' : ''}>${label}</a>`;
+  return `<header class="top"><div class="row1"><a class="mark" href="/desk">crimeher<small>Desk</small></a><div class="stats">${c.live24 || 0} live today &middot; ${c.rej24 || 0} rejected by AI</div></div>
+<nav class="tabs">${tab('held', '/desk', `Waiting <span class="n" id="n">${c.held || 0}</span>`)}${tab('live', '/desk?view=live', 'Live')}${tab('stats', '/desk?view=stats', 'Stats')}</nav></header>`;
+}
+
+const PERIODS = { '24h': { label: 'Last 24 hours', ms: 86400000 }, '7d': { label: '7 days', ms: 7 * 86400000 }, '30d': { label: '30 days', ms: 30 * 86400000 } };
+const n0 = x => Number(x || 0).toLocaleString('en-US');
+
+async function renderStats(env, url, CATS, now) {
+  const key = PERIODS[url.searchParams.get('p')] ? url.searchParams.get('p') : '24h';
+  const since = new Date(now - PERIODS[key].ms).toISOString();
+  const [tot, top, byCat, outlets, pipe] = await env.DB.batch([
+    env.DB.prepare(`SELECT COUNT(*) AS clicks, SUM(preview) AS preview FROM clicks WHERE at > ?`).bind(since),
+    env.DB.prepare(`SELECT i.id, i.headline, i.category, COALESCE(i.outlet, 'archive') AS outlet, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY i.id ORDER BY n DESC, MAX(c.at) DESC LIMIT 10`).bind(since),
+    env.DB.prepare(`SELECT i.category AS cat, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY i.category`).bind(since),
+    env.DB.prepare(`SELECT COALESCE(i.outlet, 'archive') AS outlet, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY 1 ORDER BY n DESC LIMIT 8`).bind(since),
+    env.DB.prepare(`SELECT
+        SUM(status = 'published' AND published_at > ? AND COALESCE(ai_reason, '') NOT LIKE 'desk:%') AS ai_pub,
+        SUM(status = 'published' AND published_at > ? AND ai_reason LIKE 'desk:%') AS desk_pub,
+        SUM(status = 'rejected' AND decided_at > ? AND ai_reason LIKE 'desk:%' AND ai_reason NOT LIKE '%pulled') AS desk_rej,
+        SUM(status = 'rejected' AND ai_reason LIKE 'desk:%pulled') AS pulled,
+        SUM(status = 'held') AS waiting,
+        SUM(status = 'expired' AND decided_at > ?) AS expired,
+        SUM(status = 'rejected' AND decided_at > ? AND COALESCE(ai_reason, '') NOT LIKE 'desk:%') AS ai_rej
+      FROM items WHERE wp_id IS NULL`).bind(since, since, since, since, since)
+  ]);
+  const t = tot.results[0] || {};
+  const p = pipe.results[0] || {};
+  const live = (p.ai_pub || 0) + (p.desk_pub || 0);
+  const per = live ? (t.clicks / live) : 0;
+  const chips = Object.entries(PERIODS).map(([k, v]) => `<a class="chip${k === key ? ' on' : ''}" href="/desk?view=stats&amp;p=${k}"${k === key ? ' aria-current="page"' : ''}>${v.label}</a>`).join('');
+  const note = t.clicks && t.preview === t.clicks
+    ? `<p class="note">All ${n0(t.clicks)} clicks so far came from the private preview, so they're you testing. Real reader counts start at launch.</p>`
+    : t.preview ? `<p class="note">${n0(t.preview)} of these clicks came from the private preview.</p>` : '';
+  const tiles = [
+    ['Clicks', n0(t.clicks)],
+    ['Headlines live', n0(live)],
+    ['Clicks per headline', per ? per.toFixed(1) : '0'],
+    ['Waiting for you', n0(p.waiting)]
+  ].map(([l, v]) => `<div class="tile"><div class="tv">${v}</div><div class="tl">${l}</div></div>`).join('');
+  const short = Object.fromEntries(CATS.map(c => [c.key, c.short]));
+  const topHtml = top.results.length
+    ? `<ol class="rank">${top.results.map(r => `<li><span class="h">${e(r.headline)}</span><span class="m"><b>${n0(r.n)}</b> ${r.n === 1 ? 'click' : 'clicks'} &middot; ${e(short[r.category] || r.category)} &middot; ${e(r.outlet)}</span></li>`).join('')}</ol>`
+    : `<p class="none">No clicks in this period yet.</p>`;
+  const catMap = Object.fromEntries(byCat.results.map(r => [r.cat, r.n]));
+  const cats = CATS.map(c => ({ label: c.short, n: catMap[c.key] || 0 })).sort((a, b) => b.n - a.n);
+  const max = Math.max(1, ...cats.map(c => c.n));
+  const bars = `<ul class="bars" aria-label="Clicks by category">${cats.map(c => `<li title="${e(c.label)}: ${n0(c.n)} clicks"><span class="bl">${e(c.label)}</span><span class="bt"><span class="bf" style="width:${c.n ? Math.max(2, Math.round(c.n / max * 100)) : 0}%"></span></span><span class="bv">${n0(c.n)}</span></li>`).join('')}</ul>`;
+  const outl = outlets.results.length
+    ? `<ul class="plain">${outlets.results.map(r => `<li><span>${e(r.outlet)}</span><b>${n0(r.n)}</b></li>`).join('')}</ul>`
+    : `<p class="none">No clicks in this period yet.</p>`;
+  const flow = `<ul class="plain">
+<li><span>Published by Claude</span><b>${n0(p.ai_pub)}</b></li>
+<li><span>Rejected by Claude</span><b>${n0(p.ai_rej)}</b></li>
+<li><span>Published by you</span><b>${n0(p.desk_pub)}</b></li>
+<li><span>Rejected by you</span><b>${n0(p.desk_rej)}</b></li>
+<li><span>Pulled by you</span><b>${n0(p.pulled)}</b></li>
+<li><span>Expired unreviewed</span><b>${n0(p.expired)}</b></li></ul>`;
+  return `<nav class="chips" aria-label="Period">${chips}</nav>${note}<section class="tiles">${tiles}</section>
+<section class="panel"><h2>Most clicked</h2>${topHtml}</section>
+<section class="panel"><h2>Clicks by category</h2>${bars}</section>
+<section class="panel"><h2>Top outlets clicked</h2>${outl}</section>
+<section class="panel"><h2>Headlines, ${e(PERIODS[key].label.toLowerCase())}</h2>${flow}</section>`;
 }
 
 const DESK_JS = view => `(()=>{const L=document.getElementById('list'),N=document.getElementById('n'),T=document.getElementById('toast'),M=document.getElementById('tmsg'),U=document.getElementById('undo');let timer,last;
