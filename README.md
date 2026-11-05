@@ -1,2 +1,53 @@
 # crimeher
-Crimeher. Your True Crime Daily Briefing
+
+CrimeHer. Your True Crime Daily Briefing.
+
+CrimeHer is a single page of true-crime headlines for a mostly female, mostly mobile audience, in the style of Drudge Report and Citizen Free Press. Each headline links to the original reporting, and readers come back through the day for new ones.
+
+- **Preview:** https://crimeher.craig-d0d.workers.dev (hidden from search engines)
+- **Production:** https://crimeher.com (still the old WordPress site until cutover)
+
+## How it works
+
+One Cloudflare Worker and one D1 database. There's no build step and no framework.
+
+| Part | What it does |
+|---|---|
+| `src/worker.js` | Serves the front page, eight category pages, the `/go/<id>` click-out, old-URL redirects, `robots.txt`, `sitemap.xml`, `llms.txt` and `/status`. Its cron job imports and resolves the WordPress archive. |
+| `migrations/` | D1 schema. Both migrations were applied through the Cloudflare API on Nov 5, 2026, so Wrangler's migration table doesn't list them. Don't re-run them. Number new ones `0003_…` and apply them with `wrangler d1 migrations apply crimeher --remote` (Wrangler will need to mark 0001 and 0002 as applied first). |
+| `wrangler.jsonc` | Worker name, D1 binding `DB`, cron schedule. |
+| `data/` | Reference data: the Feedly export from Nov 5, 2026. |
+
+## Categories
+
+The on-screen names are short. The URLs, titles and H1s use the full words for SEO, and the old WordPress slugs are kept.
+
+| On screen | Full name | URL |
+|---|---|---|
+| Breaking | Breaking Crime News | `/breaking-crime-news` |
+| Missing | Missing Persons | `/missing-persons` |
+| Alerts | Crime Alerts | `/crime-alerts` |
+| Abuse & Safety | Domestic Violence, Abuse & Safety | `/domestic-violence-abuse-safety` |
+| Courtroom | Trials & Verdicts | `/trials-verdicts` |
+| Cold Cases | Cold Cases | `/cold-cases` |
+| True Crime | True Crime Stories | `/true-crime-stories` |
+| Watch & Listen | Crime Documentaries & Podcasts | `/crime-media` |
+
+## Deploy
+
+```sh
+npm install
+npx wrangler deploy
+```
+
+Once Workers Builds is connected to this repo, every push to `main` deploys automatically.
+
+## Still to build
+
+1. Feed ingest: feeds → Claude (with the editorial rules) → publish or hold.
+2. Review desk behind Cloudflare Access, plus a daily alert email.
+3. Kit email signup.
+4. About, Contact, Privacy and Terms pages.
+5. Custom domain cutover and Search Console.
+
+Remove the temporary `POST /admin/backfill` route, and change the cron to every 15 minutes, when ingest ships.

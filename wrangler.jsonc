@@ -1,0 +1,19 @@
+// CrimeHer Worker. Deployed to Cloudflare account "Craig@jarrow.net's Account".
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "crimeher",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "crimeher",
+      "database_id": "f0bce747-d46d-48a2-8349-8075d6d66031",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Every minute while the archive's links resolve. Change to "*/15 * * * *" when ingest ships.
+  "triggers": { "crons": ["* * * * *"] }
+}

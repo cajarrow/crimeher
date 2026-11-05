@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<opml version="1.0">
+    <head>
+        <title>Craig subscriptions in feedly Cloud</title>
+    </head>
+    <body>
+        <outline text="Women" title="Women">
+            <outline type="rss" text="Women" title="Women" xmlUrl="https://feedly.com/f/alert/2cecc2e6-52eb-4da9-9133-144909073f54"/>
+        </outline>
+        <outline text="CrimeHer AI Feeds" title="CrimeHer AI Feeds">
+            <outline type="rss" text="True Crime Stories - Narrative Features" title="True Crime Stories - Narrative Features" xmlUrl="https://feedly.com/f/alert/36be4357-b605-45c6-9a08-04b6d51dfb6f"/>
+            <outline type="rss" text="Missing person" title="Missing person" xmlUrl="https://feedly.com/f/alert/b64c9e6d-27d9-44f0-85da-f432cd901fdd"/>
+            <outline type="rss" text="Breaking Crime" title="Breaking Crime" xmlUrl="https://feedly.com/f/alert/dafe515c-575c-4b35-b164-323f60b52811"/>
+            <outline type="rss" text="Crime Media and Documentaries" title="Crime Media and Documentaries" xmlUrl="https://feedly.com/f/alert/99921c8f-02fc-4c33-b5af-41c2f3df0712"/>
+            <outline type="rss" text="Crime Alerts" title="Crime Alerts" xmlUrl="https://feedly.com/f/alert/db602bae-9e5a-448f-b480-ba1672f53ea1"/>
+            <outline type="rss" text="Cold cases" title="Cold cases" xmlUrl="https://feedly.com/f/alert/3ca0f3aa-0434-4098-ae73-c3e349d6bb2d"/>
+            <outline type="rss" text="Domestic violence" title="Domestic violence" xmlUrl="https://feedly.com/f/alert/fcd83fe0-bb58-48b0-bb25-1d03d2392e73"/>
+            <outline type="rss" text="Trials and Verdicts" title="Trials and Verdicts" xmlUrl="https://feedly.com/f/alert/8f85345c-b763-47b1-a9e9-bff54576f008"/>
+        </outline>
+        <outline text="CrimeHer ALL" title="CrimeHer ALL">
+            <outline type="rss" text="Full Feed | truecrimenews.com" title="Full Feed | truecrimenews.com" xmlUrl="https://feeds.crimewatchdaily.com/rss" htmlUrl="https://truecrimenews.com/"/>
+            <outline type="rss" text="Crime Online" title="Crime Online" xmlUrl="http://www.crimeonline.com/feed/" htmlUrl="https://www.crimeonline.com"/>
+            <outline type="rss" text="crime | Latest News | New York Post" title="crime | Latest News | New York Post" xmlUrl="http://nypost.com/tag/crime/feed/" htmlUrl="https://nypost.com"/>
+            <outline type="rss" text="Crime" title="Crime" xmlUrl="http://www.huffingtonpost.com/feeds/verticals/crime/index.xml" htmlUrl="https://www.huffpost.com/news/crime"/>
+            <outline type="rss" text="Law &amp; Crime" title="Law &amp; Crime" xmlUrl="http://lawnewz.com/feed/" htmlUrl="https://lawandcrime.com"/>
+            <outline type="rss" text="Crime from Newser" title="Crime from Newser" xmlUrl="http://rss.newser.com/rss/section/13.rss" htmlUrl="https://www.newser.com/"/>
+            <outline type="rss" text="Crime | The Guardian" title="Crime | The Guardian" xmlUrl="http://www.guardian.co.uk/uk/ukcrime/rss" htmlUrl="https://www.theguardian.com/uk/ukcrime"/>
+        </outline>
+        <outline text="Other" title="Other">
+            <outline type="rss" text="US News – Latest Breaking Headlines, Photos &amp; Videos | New York Post" title="US News – Latest Breaking Headlines, Photos &amp; Videos | New York Post" xmlUrl="http://www.nypost.com/rss/news.xml" htmlUrl="https://nypost.com"/>
+        </outline>
+    </body>
+</opml>
