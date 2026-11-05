@@ -28,7 +28,7 @@ One Cloudflare Worker and one D1 database. There's no build step and no framewor
 - Otherwise: sync the feed list, check up to 30 due feeds, and send up to 40 new items to Claude.
 - Without the `ANTHROPIC_API_KEY` secret, feeds are still checked and items collected, but nothing is decided.
 
-Item statuses: `new` (waiting for the AI) · `published` · `held` (waiting for Craig) · `rejected` · `stale` (too old) · `skipped` (failed the keyword filter).
+Item statuses: `new` (waiting for the AI) · `published` · `held` (waiting for Craig) · `rejected` · `stale` (too old) · `skipped` (failed the keyword filter) · `expired` (held more than 24 hours without review).
 
 ## Categories
 

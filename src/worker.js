@@ -263,6 +263,8 @@ async function runScheduled(event, env) {
   const archivePending = await env.DB.prepare('SELECT 1 FROM items WHERE wp_id IS NOT NULL AND target_url IS NULL LIMIT 1').first();
   if (archivePending && Math.floor(now / 60000) % 2 === 0) return backfill(env);
   const kv = { get: getKV, set: setKV };
+  // Held headlines are news: after 24 hours unreviewed they expire instead of piling up on the desk.
+  await env.DB.prepare("UPDATE items SET status = 'expired' WHERE status = 'held' AND decided_at < ?").bind(new Date(now - 86400000).toISOString()).run();
   await syncSources(env, getKV, setKV);
   const feeds = await checkFeeds(env, now, FEEDS_PER_RUN);
   const ai = await decideNew(env, now, AI_PER_RUN, kv);
