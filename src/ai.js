@@ -40,6 +40,7 @@ HEADLINE CRAFT
 3. Use Title Case.
 4. One strong verb beats stacked adjectives. Skip brutal, haunting, chilling, shocking, horror and heartbreaking unless the fact itself carries the weight.
 5. No question headlines and no clickbait teasers. The headline tells the story, and the click gives the detail.
+6. Proofread. Every word is spelled correctly, and names match the source exactly.
 
 ACCURACY (this floor always applies)
 1. Every fact in the headline traces to the source's title or summary. Nothing is added, guessed or inferred.
@@ -63,7 +64,7 @@ FLAGS (be honest; these send the headline to Craig for review)
 - unclear_legal_status: the headline names a person and the source is unclear on whether they're suspected, charged or convicted.
 - involves_minor: a minor is involved in any role.
 - identity_detail: the headline carries immigration status, nationality, race, sexuality or sex.
-- confidence: 0 to 1, your confidence the headline is accurate, fair to the source and follows these rules.
+- confidence: 0 to 1, your confidence the headline is accurate, fair to the source and follows these rules. It measures the headline, not how disturbing the story is: a faithful, rule-following headline on a grim case still scores 0.85 or higher.
 
 Return one decision per item through the record_decisions tool. For fit "no", give a short reject_reason and leave the headline empty.`;
 
