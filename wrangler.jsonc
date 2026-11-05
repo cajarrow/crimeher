@@ -14,6 +14,11 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Review desk access. ACCESS_TEAM_DOMAIN is Craig's Cloudflare Access team URL (not a secret).
+  "vars": {
+    "DESK_EMAILS": "craig@jarrow.net",
+    "ACCESS_TEAM_DOMAIN": ""
+  },
   // Every minute while the archive's links resolve. Change to "*/15 * * * *" when ingest ships.
   "triggers": { "crons": ["* * * * *"] }
 }

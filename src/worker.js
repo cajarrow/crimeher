@@ -1,6 +1,7 @@
 import { syncSources } from './sources.js';
 import { checkFeeds } from './feeds.js';
 import { decideNew, MODEL } from './ai.js';
+import { deskUser, noteAccessTeam, lockedPage, renderDesk, deskAction } from './desk.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
 const AI_PER_RUN = 40;      // new items the AI decides per run
@@ -318,9 +319,17 @@ async function backfill(env) {
 
 async function route(req, url, env, ctx, preview) {
   const p = url.pathname;
+  if (p === '/desk' || p.startsWith('/desk/')) {
+    ctx.waitUntil(noteAccessTeam(req, env, setKV));
+    const user = await deskUser(req, env);
+    if (!user) return lockedPage(env);
+    if (p === '/desk/act' && req.method === 'POST') return deskAction(req, env, user, CATS);
+    if (p === '/desk' && req.method === 'GET') return renderDesk(env, url, user, CATS);
+    return text('Not found', 404);
+  }
   if (req.method !== 'GET' && req.method !== 'HEAD') return text('Method not allowed', 405);
   if (p === '/') return html(await renderPage(env, null, preview));
-  if (p === '/robots.txt') return text(preview ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
+  if (p === '/robots.txt') return text(preview ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /desk\n\nSitemap: ${SITE}/sitemap.xml\n`);
   if (p === '/sitemap.xml') return xml(sitemap());
   if (p === '/llms.txt') return text(llms());
   if (p === '/status') return json(await status(env));
