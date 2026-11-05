@@ -46,13 +46,13 @@ HEADLINE CRAFT
 ACCURACY (this floor always applies)
 1. Every fact in the headline traces to the source's title or summary. Nothing is added, guessed or inferred.
 2. Never be more certain than the source. "Suspect," "charged" and "accused" stay until a verdict. Nobody is called a killer, rapist or abuser before a conviction.
-3. One story, one headline. If an item covers the same case and the same development as a recent headline, set duplicate_of to that headline's id. If a later item reports a genuinely new development (charged, verdict, found), it is not a duplicate.
+3. One story, one headline. If an item covers the same case and the same development as a recent headline, set duplicate_of to that headline's id. If two new items in this batch cover the same story, write the headline for the first and set same_as_item on the others to the first item's number. If a later item reports a genuinely new development (charged, verdict, found), it is not a duplicate.
 
 PEOPLE AND IDENTITY
 - Accused adults: named once charged, always with "charged" or "accused" until a verdict.
 - Convicted people: named, with the verdict.
 - Adult victims: named when the source names them.
-- Minors (victims, suspects or witnesses): never named, even if the source names them. Describe them by age instead, e.g. "17-Year-Old Girl".
+- Minors (victims, suspects or witnesses): never named, even if the source names them. Describe them by age instead, e.g. "17-Year-Old Girl". Check every headline that involves a minor for their name before you return it.
 - Sexual-assault victims: never named, even if the source names them.
 - Identity details: a suspect's immigration status, nationality, race or sexuality goes in the headline when a crime has been committed, the detail is important to the story, and the source reports it. Never guess it from a name, a photo or a neighborhood.
 - A suspect in the country illegally is an "illegal immigrant."
@@ -64,6 +64,7 @@ FLAGS (be honest; these send the headline to Craig for review)
 - possible_duplicate: it might repeat a recent headline but you can't tell.
 - unclear_legal_status: the headline names a person and the source is unclear on whether they're suspected, charged or convicted.
 - involves_minor: a minor is involved in any role (information only).
+- names_minor: your headline contains the name of anyone under 18. Should always be false; if it's true, fix the headline.
 - minor_accused: a minor is the suspect, the accused or the convicted person.
 - child_sexual_abuse: the story involves sexual abuse or exploitation of a minor.
 - political: a politician or elected official is the accused or on trial, or the story is a justice-policy move by a politician (pardons, commutations, crime laws, executive orders). Police, prosecutors and courts doing their normal jobs don't count.
@@ -90,6 +91,8 @@ const TOOL = {
             category_unsure: { type: 'boolean' },
             headline: { type: 'string' },
             duplicate_of: { type: ['integer', 'null'], description: 'Id of the recent headline this repeats, or null.' },
+            same_as_item: { type: ['integer', 'null'], description: 'Number of an earlier item in this batch that covers the same story, or null.' },
+            names_minor: { type: 'boolean' },
             possible_duplicate: { type: 'boolean' },
             unclear_legal_status: { type: 'boolean' },
             involves_minor: { type: 'boolean' },
@@ -182,11 +185,13 @@ export async function decideNew(env, now, maxItems, kv) {
       let note = '';
       if (d.fit === 'no' || !headline) { status = 'rejected'; note = d.reject_reason || 'not a fit'; }
       else if (Number.isInteger(d.duplicate_of) && recent.some(r => r.id === d.duplicate_of)) { status = 'rejected'; note = 'duplicate of ' + d.duplicate_of; }
+      else if (Number.isInteger(d.same_as_item) && d.same_as_item !== n && d.same_as_item >= 0 && d.same_as_item < batch.length) { status = 'rejected'; note = 'same story as ' + batch[d.same_as_item].id; }
       else {
         if (d.fit === 'unsure') reasons.push('fit unclear');
         if (d.category_unsure) reasons.push('category unclear');
         if (d.possible_duplicate) reasons.push('possible duplicate');
         if (d.unclear_legal_status) reasons.push('legal status unclear');
+        if (d.names_minor) reasons.push('headline may name a minor');
         if (d.minor_accused) reasons.push('minor accused');
         if (d.child_sexual_abuse) reasons.push('child sexual abuse');
         if (d.political) reasons.push('political figure or justice policy');
