@@ -27,7 +27,8 @@ For each news item you're given, decide whether it belongs on CrimeHer, pick its
 WHAT BELONGS
 CrimeHer covers real crimes and the justice system: crimes, arrests, missing persons, public-safety and scam alerts, abuse and safety, trials and verdicts, cold cases, true-crime features, and true-crime media.
 Celebrities are in scope only when there's a crime, an arrest, a police call or a trial. Gossip is off-topic.
-Reject (fit "no"): politics or policy with no specific crime, opinion and editorial pieces, sports, business, weather, accidents with no crime, obituaries, product reviews, listicles and roundups, and anything that isn't a news report or feature.
+Politicians and officials: their criminal cases, and justice-policy moves by politicians (pardons, commutations, crime laws, executive orders on crime), are in scope, but always set political (Craig reviews each one).
+Reject (fit "no"): politics or policy with no crime or justice angle, opinion and editorial pieces, sports, business, weather, accidents with no crime, obituaries, product reviews, listicles and roundups, and anything that isn't a news report or feature.
 Categories:${CATEGORY_GUIDE}
 
 VOICE
@@ -62,7 +63,10 @@ FLAGS (be honest; these send the headline to Craig for review)
 - fit "unsure": you aren't sure the story belongs on CrimeHer.
 - possible_duplicate: it might repeat a recent headline but you can't tell.
 - unclear_legal_status: the headline names a person and the source is unclear on whether they're suspected, charged or convicted.
-- involves_minor: a minor is involved in any role.
+- involves_minor: a minor is involved in any role (information only).
+- minor_accused: a minor is the suspect, the accused or the convicted person.
+- child_sexual_abuse: the story involves sexual abuse or exploitation of a minor.
+- political: a politician or elected official is the accused or on trial, or the story is a justice-policy move by a politician (pardons, commutations, crime laws, executive orders). Police, prosecutors and courts doing their normal jobs don't count.
 - identity_detail: the headline carries immigration status, nationality, race, sexuality or sex.
 - confidence: 0 to 1, your confidence the headline is accurate, fair to the source and follows these rules. It measures the headline, not how disturbing the story is: a faithful, rule-following headline on a grim case still scores 0.85 or higher.
 
@@ -89,6 +93,9 @@ const TOOL = {
             possible_duplicate: { type: 'boolean' },
             unclear_legal_status: { type: 'boolean' },
             involves_minor: { type: 'boolean' },
+            minor_accused: { type: 'boolean' },
+            child_sexual_abuse: { type: 'boolean' },
+            political: { type: 'boolean' },
             identity_detail: { type: 'boolean' },
             confidence: { type: 'number' }
           },
@@ -180,7 +187,9 @@ export async function decideNew(env, now, maxItems, kv) {
         if (d.category_unsure) reasons.push('category unclear');
         if (d.possible_duplicate) reasons.push('possible duplicate');
         if (d.unclear_legal_status) reasons.push('legal status unclear');
-        if (d.involves_minor) reasons.push('involves a minor');
+        if (d.minor_accused) reasons.push('minor accused');
+        if (d.child_sexual_abuse) reasons.push('child sexual abuse');
+        if (d.political) reasons.push('political figure or justice policy');
         if (identityHold && d.identity_detail) reasons.push('identity detail (first two weeks)');
         if (it.priority === 'last_resort' || isLastResort(host)) reasons.push('only source is a last-resort outlet');
         if (!(Number(d.confidence) >= CONFIDENCE_FLOOR)) reasons.push('low confidence');
@@ -191,7 +200,7 @@ export async function decideNew(env, now, maxItems, kv) {
         else status = 'published';
         seenThisBatch.set(key, it.id);
       }
-      const flags = JSON.stringify({ fit: d.fit, category_unsure: !!d.category_unsure, possible_duplicate: !!d.possible_duplicate, unclear_legal_status: !!d.unclear_legal_status, involves_minor: !!d.involves_minor, identity_detail: !!d.identity_detail, duplicate_of: d.duplicate_of ?? null });
+      const flags = JSON.stringify({ fit: d.fit, category_unsure: !!d.category_unsure, possible_duplicate: !!d.possible_duplicate, unclear_legal_status: !!d.unclear_legal_status, involves_minor: !!d.involves_minor, minor_accused: !!d.minor_accused, child_sexual_abuse: !!d.child_sexual_abuse, political: !!d.political, identity_detail: !!d.identity_detail, duplicate_of: d.duplicate_of ?? null });
       stmts.push(env.DB.prepare(`UPDATE items SET status = ?, headline = ?, category = ?, confidence = ?, ai_reason = ?, hold_reason = ?, flags = ?, decided_at = ?,
           published_at = CASE WHEN ? = 'published' THEN ? ELSE published_at END WHERE id = ? AND status = 'new'`)
         .bind(status, headline || null, d.category || it.category, Number(d.confidence) || 0, note || null, reasons.join('; ') || null, flags, nowIso, status, nowIso, it.id));
