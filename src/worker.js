@@ -1,3 +1,10 @@
+import { syncSources } from './sources.js';
+import { checkFeeds } from './feeds.js';
+import { decideNew, MODEL } from './ai.js';
+
+const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
+const AI_PER_RUN = 40;      // new items the AI decides per run
+
 const CATS = [
   { key: 'breaking', short: 'Breaking', full: 'Breaking Crime News', slug: 'breaking-crime-news', wp: [3], desc: 'The latest arrests, shootings and major crime stories, updated through the day.' },
   { key: 'missing', short: 'Missing', full: 'Missing Persons', slug: 'missing-persons', wp: [4], desc: 'Missing persons cases, active searches and people found safe.' },
@@ -152,7 +159,7 @@ function redirect(loc, status) {
 
 function layout({ title, desc, path, preview, body, ld }) {
   const ga = preview ? '' : `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
-  const bar = preview ? '<div class="pv" role="note">Private preview &middot; Archive headlines from Nov 2025 to Feb 2026 &middot; The live feed starts once the editorial rules are approved</div>' : '';
+  const bar = preview ? '<div class="pv" role="note">Private preview &middot; Live headlines in testing, above the archive from Nov 2025 to Feb 2026</div>' : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${e(title)}</title><meta name="description" content="${e(desc)}"><link rel="canonical" href="${SITE}${path}"><meta name="theme-color" content="#ffffff"><meta property="og:site_name" content="CrimeHer"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:url" content="${SITE}${path}"><meta name="twitter:card" content="summary"><link rel="icon" href="${FAVICON}"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=swap"><style>${CSS}</style>${ld ? `<script type="application/ld+json">${ld}</script>` : ''}${ga}</head><body>${bar}<a class="skip" href="#main">Skip to headlines</a>${body}</body></html>`;
 }
 function header(cat) {
@@ -235,7 +242,38 @@ async function setKV(env, k, v) {
 }
 async function status(env) {
   const r = await env.DB.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN target_url IS NOT NULL AND target_url <> 'none' THEN 1 ELSE 0 END) AS resolved, SUM(CASE WHEN target_url = 'none' THEN 1 ELSE 0 END) AS no_target FROM items WHERE wp_id IS NOT NULL").first();
-  return { archive_imported: r.total, links_resolved: r.resolved || 0, links_without_target: r.no_target || 0, wp_next_page: await getKV(env, 'wp_next_page'), wp_total_pages: await getKV(env, 'wp_total_pages') };
+  const [items, feeds, last] = await env.DB.batch([
+    env.DB.prepare("SELECT status, COUNT(*) AS n FROM items WHERE wp_id IS NULL GROUP BY status"),
+    env.DB.prepare("SELECT SUM(enabled = 1 AND last_ok_at IS NOT NULL) AS working, SUM(enabled = 1 AND last_ok_at IS NULL AND last_checked_at IS NOT NULL) AS failing, SUM(enabled = 1 AND last_checked_at IS NULL) AS unchecked, SUM(enabled = 0) AS turned_off FROM sources"),
+    env.DB.prepare("SELECT started_at, feeds_checked, items_new, published, held, rejected, errors FROM runs ORDER BY id DESC LIMIT 1")
+  ]);
+  const byStatus = {};
+  for (const row of items.results) byStatus[row.status] = row.n;
+  return {
+    archive: { imported: r.total, links_resolved: r.resolved || 0, links_without_target: r.no_target || 0, links_pending: r.total - (r.resolved || 0) - (r.no_target || 0) },
+    live: { ai_on: !!env.ANTHROPIC_API_KEY, model: MODEL, items: byStatus, feeds: feeds.results[0] || {}, last_run: last.results[0] || null }
+  };
+}
+
+// Every minute: on even minutes, resolve archive links until they're all done;
+// otherwise check due feeds and let the AI decide new items.
+async function runScheduled(event, env) {
+  const now = event.scheduledTime || Date.now();
+  const archivePending = await env.DB.prepare('SELECT 1 FROM items WHERE wp_id IS NOT NULL AND target_url IS NULL LIMIT 1').first();
+  if (archivePending && Math.floor(now / 60000) % 2 === 0) return backfill(env);
+  const kv = { get: getKV, set: setKV };
+  await syncSources(env, getKV, setKV);
+  const feeds = await checkFeeds(env, now, FEEDS_PER_RUN);
+  const ai = await decideNew(env, now, AI_PER_RUN, kv);
+  const added = feeds.reduce((n, f) => n + (f.added || 0), 0);
+  if (!feeds.length && !ai.decided && !ai.errors) return;
+  const failed = feeds.filter(f => !f.ok).map(f => `${f.id}: ${f.error}`);
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO runs (started_at, finished_at, feeds_checked, items_new, published, held, rejected, errors, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(new Date(now).toISOString(), new Date().toISOString(), feeds.length, added, ai.published, ai.held, ai.rejected, failed.length + ai.errors,
+        JSON.stringify({ tokens_in: ai.input_tokens, tokens_out: ai.output_tokens, failed })),
+    env.DB.prepare("DELETE FROM runs WHERE started_at < ?").bind(new Date(now - 14 * 86400000).toISOString())
+  ]);
 }
 
 async function backfill(env) {
@@ -280,7 +318,6 @@ async function backfill(env) {
 
 async function route(req, url, env, ctx, preview) {
   const p = url.pathname;
-  if (p === '/admin/backfill' && req.method === 'POST') { await backfill(env); return json(await status(env)); }
   if (req.method !== 'GET' && req.method !== 'HEAD') return text('Method not allowed', 405);
   if (p === '/') return html(await renderPage(env, null, preview));
   if (p === '/robots.txt') return text(preview ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
@@ -318,7 +355,7 @@ const handler = {
     return res;
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(backfill(env));
+    ctx.waitUntil(runScheduled(event, env));
   }
 };
 

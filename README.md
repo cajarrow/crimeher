@@ -13,10 +13,22 @@ One Cloudflare Worker and one D1 database. There's no build step and no framewor
 
 | Part | What it does |
 |---|---|
-| `src/worker.js` | Serves the front page, eight category pages, the `/go/<id>` click-out, old-URL redirects, `robots.txt`, `sitemap.xml`, `llms.txt` and `/status`. Its cron job imports and resolves the WordPress archive. |
-| `migrations/` | D1 schema. Both migrations were applied through the Cloudflare API on Nov 5, 2026, so Wrangler's migration table doesn't list them. Don't re-run them. Number new ones `0003_…` and apply them with `wrangler d1 migrations apply crimeher --remote` (Wrangler will need to mark 0001 and 0002 as applied first). |
+| `src/worker.js` | Serves the front page, eight category pages, the `/go/<id>` click-out, old-URL redirects, `robots.txt`, `sitemap.xml`, `llms.txt` and `/status`. Runs the cron job. |
+| `src/sources.js` | The feed list. Bump `SOURCES_VERSION` after editing it, so the next run syncs it to the database. |
+| `src/feeds.js` | Checks due feeds (each about every 15 minutes), parses RSS and Atom, and stores new items. Items older than 24 hours are stored as `stale`. General-news feeds must pass a crime keyword filter. A feed that fails 6 checks in a row turns itself off. |
+| `src/ai.js` | The AI step. Claude (`claude-haiku-5-5`) applies the Editorial Rules, writes the headline, picks the category, and decides publish, hold or reject. The code enforces the hold rules, the 5-per-outlet daily cap and the last-resort list. |
+| `migrations/` | D1 schema. Migrations 0001–0003 were applied through the Cloudflare API on Nov 5, 2026, so Wrangler's migration table doesn't list them. Don't re-run them. |
+| `test/` | Parser tests: `npm test`. |
 | `wrangler.jsonc` | Worker name, D1 binding `DB`, cron schedule. |
 | `data/` | Reference data: the Feedly export from Nov 5, 2026. |
+
+### The cron job (every minute)
+
+- Even minutes, until the archive is done: resolve old WordPress posts to their original articles.
+- Otherwise: sync the feed list, check up to 30 due feeds, and send up to 40 new items to Claude.
+- Without the `ANTHROPIC_API_KEY` secret, feeds are still checked and items collected, but nothing is decided.
+
+Item statuses: `new` (waiting for the AI) · `published` · `held` (waiting for Craig) · `rejected` · `stale` (too old) · `skipped` (failed the keyword filter).
 
 ## Categories
 
@@ -40,14 +52,11 @@ npm install
 npx wrangler deploy
 ```
 
-Once Workers Builds is connected to this repo, every push to `main` deploys automatically.
+Workers Builds is connected (Nov 5, 2026): every push to `main` deploys automatically. Secrets live in Cloudflare only (`ANTHROPIC_API_KEY`).
 
 ## Still to build
 
-1. Feed ingest: feeds → Claude (with the editorial rules) → publish or hold.
-2. Review desk behind Cloudflare Access, plus a daily alert email.
-3. Kit email signup.
-4. About, Contact, Privacy and Terms pages.
-5. Custom domain cutover and Search Console.
-
-Remove the temporary `POST /admin/backfill` route, and change the cron to every 15 minutes, when ingest ships.
+1. Review desk behind Cloudflare Access, plus a daily alert email.
+2. Kit email signup.
+3. About, Contact, Privacy and Terms pages.
+4. Custom domain cutover and Search Console.
