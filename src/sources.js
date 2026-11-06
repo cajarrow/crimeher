@@ -10,7 +10,7 @@
 //
 // Bump SOURCES_VERSION after editing this list, so the next run syncs it to the database.
 
-export const SOURCES_VERSION = '2026-11-06.1';
+export const SOURCES_VERSION = '2026-11-06.2';
 
 // Hostnames on the last-resort list. Matched against the article's own host.
 export const LAST_RESORT_HOSTS = ['huffpost.com', 'huffingtonpost.com', 'cnn.com', 'ms.now', 'msnbc.com'];
@@ -38,7 +38,7 @@ const LIST = [
   ['truecrimenews', 'TrueCrimeNews', 'https://feeds.truecrimenews.com/rss/', B],
   ['nydailynews-crime', 'New York Daily News: Crime', bing('site:nydailynews.com police'), B],
   ['independent-crime', 'The Independent: US Crime', 'https://www.independent.co.uk/news/world/americas/crime/rss', B],
-  ['people-crime', 'People: Crime', bing('site:people.com crime'), B],
+  ['people-crime', 'People: Crime', 'https://feeds-api.dotdashmeredith.com/v1/rss/google/064f3cfe-b926-4016-913d-281e51754562', T],
   ['usmagazine-crime', 'Us Weekly: Crime', 'https://www.usmagazine.com/category/celebrity-news/crime/feed/', B],
   ['radar-truecrime', 'Radar Online: True Crime', 'https://radaronline.com/true-crime/rss/', B],
   ['guardian-ukcrime', 'The Guardian: UK Crime', 'https://www.theguardian.com/uk/ukcrime/rss', B],
@@ -47,7 +47,7 @@ const LIST = [
 
   // Local TV and newspaper crime desks
   ['fox5ny-crime', 'FOX 5 New York: Crime', 'https://www.fox5ny.com/rss.xml?tag=crime-publicsafety', B],
-  ['fox5atl-crime', 'FOX 5 Atlanta: Crime', bing('site:fox5atlanta.com crime'), B],
+  ['fox5atl-crime', 'FOX 5 Atlanta: Crime', 'https://www.fox5atlanta.com/rss.xml?tag=crime-publicsafety', B],
   ['fox32-crime', 'FOX 32 Chicago: Crime', 'https://www.fox32chicago.com/rss.xml?tag=crime-publicsafety', B],
   ['foxla-crime', 'FOX 11 Los Angeles: Crime', 'https://www.foxla.com/rss.xml?tag=crime-publicsafety', B],
   ['fox13-crime', 'FOX 13 Tampa Bay: Crime', 'https://www.fox13news.com/rss.xml?tag=crime-publicsafety', B],
@@ -61,7 +61,7 @@ const LIST = [
   ['kfor-crime', 'KFOR Oklahoma City: Crime', bing('site:kfor.com police'), B],
   ['ktla-crime', 'KTLA Los Angeles: Crime', bing('site:ktla.com police'), B],
   ['pix11-crime', 'PIX11 New York: Crime', 'https://pix11.com/news/crime/feed/', B],
-  ['wgn-crime', 'WGN Chicago: Crime', bing('site:wgntv.com police'), B],
+  ['wgn-crime', 'WGN Chicago: Crime', 'https://wgntv.com/news/chicagocrime/feed/', B],
   ['kseecrime', 'Your Central Valley: Crime', 'https://www.yourcentralvalley.com/news/crime/feed/', B],
   ['baltsun-crime', 'Baltimore Sun: Crime', bing('site:baltimoresun.com police'), B],
   ['pilot-crime', 'The Virginian-Pilot: Crime', bing('site:pilotonline.com police'), B],
@@ -74,12 +74,14 @@ const LIST = [
   // Courtroom
   ['courttv', 'Court TV', 'https://www.courttv.com/feed/', C],
   ['lawandcrime', 'Law&Crime', 'https://lawandcrime.com/feed/', C],
+  ['courttv', 'Court TV', 'https://www.courttv.com/feed/', C],
   ['courthousenews', 'Courthouse News', 'https://www.courthousenews.com/feed/', C, { broad: true }],
   ['doj-press', 'U.S. Justice Department: Press Releases', 'https://www.justice.gov/news/rss?type=press_release&m=1', C],
   ['bing-verdict', 'News search: murder verdicts', bing('jury verdict murder trial'), C],
   ['bing-sentenced', 'News search: sentencings', bing('sentenced murder'), C],
 
   // Missing persons
+  ['charley-project', 'The Charley Project: Missing Person of the Week', 'https://charleyross.wordpress.com/feed/', M],
   ['fox5atl-missing', 'FOX 5 Atlanta: Missing', 'https://www.fox5atlanta.com/rss.xml?tag=missing-persons', M],
   ['fox5ny-missing', 'FOX 5 New York: Missing', 'https://www.fox5ny.com/rss.xml?tag=missing-persons', M],
   ['nbcny-missing', 'NBC New York: Missing', 'https://www.nbcnewyork.com/tag/missing-person/feed/', M],
@@ -115,12 +117,16 @@ const LIST = [
 
   // True Crime
   ['oxygen', 'Oxygen: Crime News', 'https://www.oxygen.com/feeds/crime-news', T],
+  ['crimeonline', 'CrimeOnline', 'https://www.crimeonline.com/feed/', T],
+  ['oxygen', 'Oxygen: Crime News', 'https://www.oxygen.com/feeds/crime-news', T],
   ['crimereads', 'CrimeReads', 'https://crimereads.com/feed/', T],
   ['unilad-truecrime', 'UNILAD: True Crime', 'https://www.unilad.com/true-crime.rss', T],
   ['morbidology', 'Morbidology', 'https://morbidology.com/feed/', T],
   ['cbs-48hours', 'CBS News: 48 Hours', 'https://www.cbsnews.com/latest/rss/48-hours', T],
 
   // Watch & Listen
+  ['dateline-pod', 'Dateline NBC (podcast)', 'https://podcastfeeds.nbcnews.com/HL4TzgYC', W],
+  ['crimejunkie', 'Crime Junkie (podcast)', 'https://feeds.simplecast.com/qm_9xx0g', W],
   ['decider-truecrime', 'Decider: True Crime', 'https://decider.com/tag/true-crime/feed/', W],
   ['bing-doc', 'News search: true-crime documentaries', bing('true crime documentary'), W],
   ['bing-podcast', 'News search: true-crime podcasts', bing('true crime podcast'), W]
