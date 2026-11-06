@@ -5,7 +5,7 @@
 //    versions, then the one a reader would click first that is still fully accurate.
 // The rules mirror the "CrimeHer Editorial Rules" doc (approved Nov 5, 2026). Change both together.
 
-import { hostOf, isLastResort } from './feeds.js';
+import { hostOf, isLastResort, plain } from './feeds.js';
 
 export const TRIAGE_MODEL = 'claude-haiku-5-5';
 export const WRITER_MODEL = 'claude-sonnet-5-5';
@@ -40,7 +40,7 @@ const CATEGORY_GUIDE = `
 
 const ABOUT = `CrimeHer (crimeher.com) is "Your Daily True Crime Briefing": one page of true-crime headlines, each linking to the original reporting, in the spirit of Drudge Report and Citizen Free Press. Most readers are women who love true crime, and most read on a phone.
 CrimeHer is not woke. Its rules center on truth, justice and the American way. It follows the facts, not mainstream framing.
-You only ever see each outlet's title and summary. Treat them as the full extent of what you know. If the summary is about a different story than the title, ignore the summary.`;
+You only ever see each outlet's title, its summary and, for headline writing, an excerpt from the article. Treat them as the full extent of what you know. If the summary or excerpt is about a different story than the title, ignore it.`;
 
 export const TRIAGE_PROMPT = `You are the story editor for CrimeHer. ${ABOUT}
 
@@ -84,9 +84,9 @@ Lean into what grips true-crime readers: the twist, the betrayal, the danger hid
 Don't soften, hedge or leave out facts the source reports because they're uncomfortable. Don't add framing the source doesn't support.
 
 HEADLINE CRAFT
-1. Find the hook first: the one true detail that makes a reader say "wait, what?" (the missing cow, the car trunk, "started on Valentine's Day"). Lead with it or build the headline around it. Never bury it under names, ages and towns.
+1. Find the hook first: the one true detail that makes a reader say "wait, what?" (the missing cow, the car trunk, "started on Valentine's Day"). Read the article excerpt for it; the best detail is usually there, not in the outlet's headline. Lead with it or build the headline around it. Never bury it under names, ages and towns.
 2. Then make sure the headline still says what happened: the crime and the status (charged, caught, convicted, missing, found). A hook with no news is a teaser, and teasers are out.
-3. Rewrite. Don't paraphrase the outlet's headline. If the outlet's headline already has the hook, keep the hook and make it tighter and punchier.
+3. Rewrite. Don't paraphrase or reshuffle the outlet's headline. If your headline reuses most of the outlet's words, start over from a different detail. If the outlet's headline already has the hook, keep the hook and make it tighter and punchier.
 4. Leave out names and ages of people readers won't recognize. They don't hook anyone; the article has them. Use a name when the person is famous or the name is the story (Lindsay Clancy, Diddy, Ted Bundy), or when a missing person is still being searched for.
 5. Aim for 50 to 75 characters. Never more than 90.
 6. Tools you can use: a short quote taken word for word from the title or summary, in quotes; "Cops:" or "Police Say" when the claim comes from police; a colon or a dash to set up the twist.
@@ -108,7 +108,7 @@ Bad, and why:
 - "Fresno Police Arrest Miguel Aguilar Yepez, 25, After Armed Man Looks Into 911 Caller's Tent": a paraphrase stuffed with a name and an age.
 
 ACCURACY (this floor always applies)
-1. Every fact in the headline traces to the source's title or summary. Nothing is added, guessed or inferred.
+1. Every fact in the headline traces to the source's title, summary or article excerpt. Nothing is added, guessed or inferred.
 2. Never be more certain than the source. "Suspect," "charged" and "accused" stay until a verdict. Nobody is called a killer, rapist or abuser before a conviction.
 
 PEOPLE AND IDENTITY
@@ -249,6 +249,37 @@ export function overlap(a, b) {
   return n >= 3 ? n / Math.min(a.size, b.size) : 0;
 }
 
+// The opening of the article, for the headline writer only (never stored or shown). Hooks live in
+// the article body far more often than in the outlet's headline. Returns '' when the page can't be read.
+const EXCERPT_CHARS = 1600;
+const BOILER = /cookie|subscribe|newsletter|sign up|advertis|all rights reserved|©|copyright|click here|read more|download the app|follow us/i;
+export function articleExcerpt(html) {
+  const meta = (html.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]*>/i) || [''])[0];
+  const desc = (meta.match(/content=["']([^"']*)["']/i) || [, ''])[1];
+  const body = html.replace(/<(script|style|noscript|nav|header|footer|aside|form)[\s\S]*?<\/\1>/gi, ' ');
+  const paras = (body.match(/<p[\s>][\s\S]*?<\/p>/gi) || []).map(p => plain(p)).filter(t => t.length >= 60 && !BOILER.test(t));
+  let out = plain(desc);
+  for (const p of paras) { if (out.length >= EXCERPT_CHARS) break; if (!out.includes(p.slice(0, 40))) out += (out ? ' ' : '') + p; }
+  return out.slice(0, EXCERPT_CHARS);
+}
+async function fetchExcerpt(url) {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CrimeHer/1.0; +https://crimeher.com)', Accept: 'text/html' }, redirect: 'follow', signal: AbortSignal.timeout(6000) });
+    if (!res.ok || !/html/i.test(res.headers.get('content-type') || '')) return '';
+    const html = (await res.text()).slice(0, 400000);
+    return articleExcerpt(html);
+  } catch { return ''; }
+}
+
+// Share of the headline's words that come straight from the outlet's title.
+const PLAIN_STOP = new Set('the and for with from after into that this was are has have had his her its out who what when how a an of in on at to by as is it be'.split(' '));
+export function copiedShare(title, headline) {
+  const words = s => String(s || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w.length > 1 && !PLAIN_STOP.has(w));
+  const t = new Set(words(title));
+  const h = words(headline);
+  return h.length ? h.filter(w => t.has(w)).length / h.length : 0;
+}
+
 // Decide up to `maxItems` new items. Returns counts and token use for the run log.
 export async function decideNew(env, now, maxItems, kv) {
   const stats = { decided: 0, published: 0, held: 0, rejected: 0, errors: 0, usage: {}, writer: WRITER_MODEL };
@@ -326,7 +357,8 @@ export async function decideNew(env, now, maxItems, kv) {
     // 2. Headlines, only for stories that made the cut.
     for (let w = 0; w < toWrite.length; w += WRITER_BATCH) {
       const group = toWrite.slice(w, w + WRITER_BATCH);
-      const writeText = 'STORIES:\n\n' + group.map((g, n) => `[${n}] Outlet: ${g.it.outlet || g.it.source_name}\nTitle: ${g.it.title_raw}\nSummary: ${g.it.summary_raw || '(none)'}\nCategory: ${g.category}${g.d.involves_minor ? '\nInvolves a minor: yes' : ''}`).join('\n\n');
+      const excerpts = await Promise.all(group.map(g => fetchExcerpt(g.it.url)));
+      const writeText = 'STORIES:\n\n' + group.map((g, n) => `[${n}] Outlet: ${g.it.outlet || g.it.source_name}\nTitle: ${g.it.title_raw}\nSummary: ${g.it.summary_raw || '(none)'}\nArticle excerpt: ${excerpts[n] || '(not available)'}\nCategory: ${g.category}${g.d.involves_minor ? '\nInvolves a minor: yes' : ''}`).join('\n\n');
       let written;
       try { written = (await callClaude(env, stats.writer, WRITER_PROMPT, WRITER_TOOL, writeText, stats.usage, stats.writer !== WRITER_MODEL)).headlines || []; }
       catch (err) { console.error('writer failed', String(err)); stats.errors++; break; }
@@ -335,8 +367,15 @@ export async function decideNew(env, now, maxItems, kv) {
         const { it, d, tflags, category } = group[n];
         const h = wByIdx.get(n);
         if (!h) continue;
-        const headline = cleanHeadline(h.headline);
+        let headline = cleanHeadline(h.headline);
         if (!headline) continue;
+        // Craig's rule: rewrite, don't paraphrase. If the pick mostly copies the outlet, use the freshest accurate alternative.
+        const alts = (Array.isArray(h.options) ? h.options : []).map(cleanHeadline).filter(Boolean);
+        let swapped = false;
+        if (copiedShare(it.title_raw, headline) >= 0.75) {
+          const fresher = alts.filter(o => o.length <= 90).map(o => [o, copiedShare(it.title_raw, o)]).sort((a, b) => a[1] - b[1])[0];
+          if (fresher && fresher[1] <= 0.55) { headline = fresher[0]; swapped = true; }
+        }
         const host = it.outlet || hostOf(it.url);
         const reasons = [];
         if (d.fit === 'unsure') reasons.push('fit unclear');
@@ -351,7 +390,7 @@ export async function decideNew(env, now, maxItems, kv) {
         if (it.priority === 'last_resort' || isLastResort(host)) reasons.push('only source is a last-resort outlet');
         if (!(Number(h.confidence) >= CONFIDENCE_FLOOR)) reasons.push('low confidence');
         const flags = { ...tflags, names_minor: !!h.names_minor, identity_detail: !!h.identity_detail,
-          options: (Array.isArray(h.options) ? h.options : []).map(cleanHeadline).filter(o => o && o !== headline).slice(0, 3) };
+          options: alts.filter(o => o !== headline).slice(0, 3), writer: stats.writer, excerpt: !!excerpts[n], copied: Math.round(copiedShare(it.title_raw, headline) * 100) / 100, swapped };
         let status = 'published';
         let note = null;
         if (reasons.length) status = 'held';
