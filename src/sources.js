@@ -10,7 +10,7 @@
 //
 // Bump SOURCES_VERSION after editing this list, so the next run syncs it to the database.
 
-export const SOURCES_VERSION = '2026-11-06.2';
+export const SOURCES_VERSION = '2026-11-06.3';
 
 // Hostnames on the last-resort list. Matched against the article's own host.
 export const LAST_RESORT_HOSTS = ['huffpost.com', 'huffingtonpost.com', 'cnn.com', 'ms.now', 'msnbc.com'];
