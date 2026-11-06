@@ -270,7 +270,8 @@ async function status(env) {
   for (const row of items.results) byStatus[row.status] = row.n;
   return {
     archive: { imported: r.total, links_resolved: r.resolved || 0, links_without_target: r.no_target || 0, links_pending: r.total - (r.resolved || 0) - (r.no_target || 0) },
-    live: { ai_on: !!env.ANTHROPIC_API_KEY, model: MODEL, items: byStatus, feeds: feeds.results[0] || {}, last_run: last.results[0] || null }
+    live: { ai_on: !!env.ANTHROPIC_API_KEY, model: MODEL, items: byStatus, feeds: feeds.results[0] || {}, last_run: last.results[0] || null,
+      est_ai_cost_today_usd: Math.round(((await env.DB.prepare(`SELECT COALESCE(SUM(json_extract(notes, '$.est_cost_usd')), 0) AS usd FROM runs WHERE started_at >= ?`).bind(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z').first()).usd || 0) * 100) / 100 }
   };
 }
 
@@ -292,7 +293,7 @@ async function runScheduled(event, env) {
   await env.DB.batch([
     env.DB.prepare('INSERT INTO runs (started_at, finished_at, feeds_checked, items_new, published, held, rejected, errors, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .bind(new Date(now).toISOString(), new Date().toISOString(), feeds.length, added, ai.published, ai.held, ai.rejected, failed.length + ai.errors,
-        JSON.stringify({ usage: ai.usage, est_cost_usd: estimateCost(ai.usage), failed })),
+        JSON.stringify({ usage: ai.usage, est_cost_usd: estimateCost(ai.usage), writer: ai.writer, failed })),
     env.DB.prepare("DELETE FROM runs WHERE started_at < ?").bind(new Date(now - 14 * 86400000).toISOString())
   ]);
 }

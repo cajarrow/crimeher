@@ -17,6 +17,9 @@ const CONFIDENCE_FLOOR = 0.7;    // writer's confidence below this holds the hea
 const OUTLET_DAILY_CAP = 5;      // "No flooding": 5 headlines per outlet in 24 hours
 const IDENTITY_HOLD_DAYS = 14;   // identity-detail headlines are held for the first two weeks of the live feed
 const SAME_STORY = 0.6;          // title-word overlap that marks a repeat before any AI call
+// Safety valve under Craig's $25/month Claude limit: past this estimated spend in a UTC day, the
+// cheaper model writes the headlines for the rest of the day, so the board never stops.
+const DAILY_BUDGET_USD = 0.75;
 
 // Approximate list prices per million tokens, for the run log's cost estimate only.
 const PRICE = { [TRIAGE_MODEL]: [0.10, 0.50], [WRITER_MODEL]: [2.00, 10.00] };
@@ -244,9 +247,12 @@ export function overlap(a, b) {
 
 // Decide up to `maxItems` new items. Returns counts and token use for the run log.
 export async function decideNew(env, now, maxItems, kv) {
-  const stats = { decided: 0, published: 0, held: 0, rejected: 0, errors: 0, usage: {} };
+  const stats = { decided: 0, published: 0, held: 0, rejected: 0, errors: 0, usage: {}, writer: WRITER_MODEL };
   if (!env.ANTHROPIC_API_KEY) return stats;
   const nowIso = new Date(now).toISOString();
+  const dayStart = nowIso.slice(0, 10) + 'T00:00:00.000Z';
+  const spent = (await env.DB.prepare(`SELECT COALESCE(SUM(json_extract(notes, '$.est_cost_usd')), 0) AS usd FROM runs WHERE started_at >= ?`).bind(dayStart).first()).usd || 0;
+  if (spent >= DAILY_BUDGET_USD) stats.writer = TRIAGE_MODEL;
 
   let liveSince = await kv.get(env, 'live_since');
   if (!liveSince) { liveSince = nowIso; await kv.set(env, 'live_since', liveSince); }
@@ -315,7 +321,7 @@ export async function decideNew(env, now, maxItems, kv) {
       const group = toWrite.slice(w, w + WRITER_BATCH);
       const writeText = 'STORIES:\n\n' + group.map((g, n) => `[${n}] Outlet: ${g.it.outlet || g.it.source_name}\nTitle: ${g.it.title_raw}\nSummary: ${g.it.summary_raw || '(none)'}\nCategory: ${g.category}${g.d.involves_minor ? '\nInvolves a minor: yes' : ''}`).join('\n\n');
       let written;
-      try { written = (await callClaude(env, WRITER_MODEL, WRITER_PROMPT, WRITER_TOOL, writeText, stats.usage, false)).headlines || []; }
+      try { written = (await callClaude(env, stats.writer, WRITER_PROMPT, WRITER_TOOL, writeText, stats.usage, stats.writer !== WRITER_MODEL)).headlines || []; }
       catch (err) { console.error('writer failed', String(err)); stats.errors++; break; }
       const wByIdx = new Map(written.map(h => [h.i, h]));
       for (let n = 0; n < group.length; n++) {
