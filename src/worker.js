@@ -1,6 +1,6 @@
 import { syncSources } from './sources.js';
 import { checkFeeds } from './feeds.js';
-import { decideNew, MODEL } from './ai.js';
+import { decideNew, estimateCost, MODEL } from './ai.js';
 import { deskUser, noteAccessTeam, lockedPage, renderDesk, deskAction } from './desk.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
@@ -292,7 +292,7 @@ async function runScheduled(event, env) {
   await env.DB.batch([
     env.DB.prepare('INSERT INTO runs (started_at, finished_at, feeds_checked, items_new, published, held, rejected, errors, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .bind(new Date(now).toISOString(), new Date().toISOString(), feeds.length, added, ai.published, ai.held, ai.rejected, failed.length + ai.errors,
-        JSON.stringify({ tokens_in: ai.input_tokens, tokens_out: ai.output_tokens, failed })),
+        JSON.stringify({ usage: ai.usage, est_cost_usd: estimateCost(ai.usage), failed })),
     env.DB.prepare("DELETE FROM runs WHERE started_at < ?").bind(new Date(now - 14 * 86400000).toISOString())
   ]);
 }
