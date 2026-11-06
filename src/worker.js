@@ -16,13 +16,15 @@ const AI_PER_RUN = 40;      // new items the AI decides per run
 const CATS = [
   { key: 'breaking', short: 'Breaking', full: 'Breaking Crime News', slug: 'breaking-crime-news', wp: [3], desc: 'The latest arrests, shootings and major crime stories, updated through the day.' },
   { key: 'missing', short: 'Missing', full: 'Missing Persons', slug: 'missing-persons', wp: [4], desc: 'Missing persons cases, active searches and people found safe.' },
-  { key: 'alerts', short: 'Alerts', full: 'Crime Alerts', slug: 'crime-alerts', wp: [5], desc: 'Public-safety warnings, scams and crime alerts worth knowing about.' },
-  { key: 'safety', short: 'Abuse & Safety', full: 'Domestic Violence, Abuse & Safety', slug: 'domestic-violence-abuse-safety', wp: [6, 11], desc: 'Domestic violence, abuse and personal-safety news.' },
+  { key: 'alerts', short: 'Alerts', full: 'Crime & Scam Alerts', slug: 'crime-alerts', wp: [5], desc: 'Scam warnings, wanted fugitives and public-safety alerts worth knowing about.' },
+  { key: 'safety', short: 'Domestic Violence', full: 'Domestic Violence News', slug: 'domestic-violence', wp: [6, 11], desc: 'Partner and family violence, stalking, and the cases behind them.' },
   { key: 'courtroom', short: 'Courtroom', full: 'Trials & Verdicts', slug: 'trials-verdicts', wp: [7], desc: 'Trials, verdicts, sentencings and court hearings.' },
   { key: 'cold', short: 'Cold Cases', full: 'Cold Cases', slug: 'cold-cases', wp: [8], desc: 'Cold-case arrests, DNA breakthroughs and decades-old mysteries.' },
-  { key: 'truecrime', short: 'True Crime', full: 'True Crime Stories', slug: 'true-crime-stories', wp: [9], desc: 'In-depth true-crime stories and features.' },
-  { key: 'watch', short: 'Watch & Listen', full: 'Crime Documentaries & Podcasts', slug: 'crime-media', wp: [10], desc: 'True-crime documentaries, series, podcasts and books.' }
+  { key: 'truecrime', short: 'Deep Dives', full: 'True Crime Stories', slug: 'true-crime-stories', wp: [9], desc: 'In-depth true-crime stories, features and retrospectives.' },
+  { key: 'watch', short: 'Watch & Listen', full: 'True Crime Documentaries & Podcasts', slug: 'true-crime-documentaries-podcasts', wp: [10], desc: 'News on true-crime documentaries, series, podcasts and books.' }
 ];
+// Category addresses renamed on Nov 6, 2026. Old ones (and the WordPress /category/ versions) redirect.
+const OLD_SLUGS = { 'domestic-violence-abuse-safety': 'domestic-violence', 'crime-media': 'true-crime-documentaries-podcasts' };
 const BY_KEY = {};
 const BY_SLUG = {};
 const WP_TO_KEY = {};
@@ -404,8 +406,9 @@ async function route(req, url, env, ctx, preview) {
   const go = p.match(/^\/go\/(\d+)$/);
   if (go) return goTo(env, ctx, req, Number(go[1]), url);
   const oldCat = p.match(/^\/category\/([a-z0-9-]+)\/?$/);
-  if (oldCat && BY_SLUG[oldCat[1]]) return redirect('/' + oldCat[1], 301);
+  if (oldCat && (BY_SLUG[oldCat[1]] || OLD_SLUGS[oldCat[1]])) return redirect('/' + (OLD_SLUGS[oldCat[1]] || oldCat[1]), 301);
   const slug = decodeURIComponent(p.replace(/^\/+|\/+$/g, ''));
+  if (OLD_SLUGS[slug]) return redirect('/' + OLD_SLUGS[slug], 301);
   if (BY_SLUG[slug]) {
     if (p !== '/' + slug) return redirect('/' + slug, 301);
     return html(await renderPage(env, BY_SLUG[slug], preview));

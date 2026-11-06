@@ -102,7 +102,7 @@ const LIST = [
   ['ca-oag', 'California Attorney General: News', 'https://oag.ca.gov/news/feed', A, { broad: true }],
   ['bing-police-warn', 'News search: police warnings', bing('police warn residents scam'), A],
 
-  // Abuse & Safety
+  // Domestic Violence
   ['nbcwash-dv', 'NBC Washington: Domestic Violence', 'https://www.nbcwashington.com/news/local/domestic-violence-awareness/feed/', S],
   ['bing-dv', 'News search: domestic violence arrests', bing('domestic violence arrested charged'), S],
   ['bing-stalking', 'News search: stalking charges', bing('stalking charged woman'), S],

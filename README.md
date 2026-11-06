@@ -46,12 +46,12 @@ The on-screen names are short. The URLs, titles and H1s use the full words for S
 |---|---|---|
 | Breaking | Breaking Crime News | `/breaking-crime-news` |
 | Missing | Missing Persons | `/missing-persons` |
-| Alerts | Crime Alerts | `/crime-alerts` |
-| Abuse & Safety | Domestic Violence, Abuse & Safety | `/domestic-violence-abuse-safety` |
+| Alerts | Crime & Scam Alerts | `/crime-alerts` |
+| Domestic Violence | Domestic Violence News | `/domestic-violence` (old `/domestic-violence-abuse-safety` redirects) |
 | Courtroom | Trials & Verdicts | `/trials-verdicts` |
 | Cold Cases | Cold Cases | `/cold-cases` |
-| True Crime | True Crime Stories | `/true-crime-stories` |
-| Watch & Listen | Crime Documentaries & Podcasts | `/crime-media` |
+| Deep Dives | True Crime Stories | `/true-crime-stories` |
+| Watch & Listen | True Crime Documentaries & Podcasts | `/true-crime-documentaries-podcasts` (old `/crime-media` redirects) |
 
 ## Deploy
 

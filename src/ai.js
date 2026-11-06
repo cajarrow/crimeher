@@ -32,12 +32,12 @@ const PRICE = { [TRIAGE_MODEL]: [0.10, 0.50, 0.1], [WRITER_MODEL]: [2.00, 10.00,
 const CATEGORY_GUIDE = `
 - breaking: Breaking Crime News. New arrests, shootings, killings, manhunts and major crime stories.
 - missing: Missing Persons. Active searches, AMBER and Silver Alerts, people found safe or found dead after going missing.
-- alerts: Crime Alerts. Public-safety warnings, scams and fraud warnings, wanted fugitives, warnings from police, the FBI or the FTC.
-- safety: Abuse & Safety. Domestic violence, stalking, sexual abuse, child abuse, trafficking and personal-safety news.
+- alerts: Crime & Scam Alerts. Scam and fraud warnings, wanted fugitives, public-safety and personal-safety warnings from police, the FBI or the FTC.
+- safety: Domestic Violence. Violence and abuse between partners, exes or family members: domestic killings and assaults, stalking, coercive control, protective-order violations, and abuse of children or elders at home. Abuse outside the family (trafficking, abuse by teachers, coaches or clergy, assaults by strangers) goes to breaking, or to courtroom when it is a court story.
 - courtroom: Trials & Verdicts. Trials, hearings, pleas, verdicts and sentencings.
 - cold: Cold Cases. Arrests, IDs and new leads in cases that went unsolved for years, often through DNA or genetic genealogy.
 - truecrime: True Crime Stories. Longer features, retrospectives and deep dives on crimes.
-- watch: Crime Documentaries & Podcasts. News about true-crime documentaries, series, podcasts and books.`;
+- watch: True Crime Documentaries & Podcasts. News about true-crime documentaries, series, podcasts and books.`;
 
 const ABOUT = `CrimeHer (crimeher.com) is "Your Daily True Crime Briefing": one page of true-crime headlines, each linking to the original reporting, in the spirit of Drudge Report and Citizen Free Press. Most readers are women who love true crime, and most read on a phone.
 CrimeHer is not woke. Its rules center on truth, justice and the American way. It follows the facts, not mainstream framing.
