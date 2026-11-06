@@ -423,6 +423,8 @@ async function route(req, url, env, ctx, preview) {
 const handler = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    // One address for the site: www.crimeher.com goes to crimeher.com.
+    if (url.hostname === 'www.crimeher.com') return Response.redirect('https://crimeher.com' + url.pathname + url.search, 301);
     const preview = url.hostname.endsWith('.workers.dev');
     let res;
     try {

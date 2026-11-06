@@ -12,7 +12,7 @@ export const WRITER_MODEL = 'claude-sonnet-5-5';
 export const MODEL = `${TRIAGE_MODEL} (triage) + ${WRITER_MODEL} (headlines)`;
 const TRIAGE_BATCH = 25;
 const WRITER_BATCH = 15;
-const INTEREST_MIN = 7;          // 0-10. Tuned toward about 150 headlines a day on the board (Craig, Nov 5)
+const INTEREST_MIN = 8;          // 0-10. Raised from 7 on Nov 6 (Craig): the board ran ~209 a day against his ~150 target, and the AI over budget
 const CONFIDENCE_FLOOR = 0.7;    // writer's confidence below this holds the headline for review
 const OUTLET_DAILY_CAP = 5;      // "No flooding": 5 headlines per outlet in 24 hours
 const IDENTITY_HOLD_DAYS = 14;   // identity-detail headlines are held for the first two weeks of the live feed
@@ -407,6 +407,10 @@ export async function decideNew(env, now, maxItems, kv) {
       else if (Number.isInteger(d.duplicate_of) && related.some(r => r.id === d.duplicate_of)) finish(it, 'rejected', { category, note: 'duplicate of ' + d.duplicate_of, flags: tflags });
       else if (Number.isInteger(d.same_as_item) && d.same_as_item !== n && d.same_as_item >= 0 && d.same_as_item < batch.length) finish(it, 'rejected', { category, note: 'same story as ' + batch[d.same_as_item].id, flags: tflags });
       else if (!(Number(d.interest) >= INTEREST_MIN || d.public_service)) finish(it, 'rejected', { category, note: `below the bar (interest ${d.interest})`, flags: tflags });
+      // Possible repeats are dropped, not held (Craig, Nov 6): the first version is already up.
+      else if (d.possible_duplicate) finish(it, 'rejected', { category, note: 'possible repeat', flags: tflags });
+      // Outlet already at its daily cap: skip it before paying for headlines that would be thrown away.
+      else if ((counts[it.outlet || hostOf(it.url)] || 0) >= OUTLET_DAILY_CAP) finish(it, 'rejected', { category, note: 'outlet cap reached', flags: tflags });
       else toWrite.push({ it, d, tflags, category });
     }
 
@@ -436,7 +440,6 @@ export async function decideNew(env, now, maxItems, kv) {
         const reasons = [];
         if (d.fit === 'unsure') reasons.push('fit unclear');
         // Category doubt alone no longer holds a story (Craig, Nov 6): the closest category stands and he can change it on the desk.
-        if (d.possible_duplicate) reasons.push('possible duplicate');
         if (d.unclear_legal_status) reasons.push('legal status unclear');
         if (h.names_minor) reasons.push('headline may name a minor');
         if (d.minor_accused) reasons.push('minor accused');
