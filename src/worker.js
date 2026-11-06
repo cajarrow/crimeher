@@ -16,6 +16,14 @@ const CATS = [
   { key: 'truecrime', short: 'True Crime', full: 'True Crime Stories', slug: 'true-crime-stories', wp: [9], desc: 'In-depth true-crime stories and features.' },
   { key: 'watch', short: 'Watch & Listen', full: 'Crime Documentaries & Podcasts', slug: 'crime-media', wp: [10], desc: 'True-crime documentaries, series, podcasts and books.' }
 ];
+// Category colors: base (dots, rules), tint (pill background), ink (text on the tint, >= 4.6:1).
+const KCOLORS = {
+  breaking: ['#C62828', '#F8E5E5', '#C62828'], missing: ['#E8890C', '#FCF1E2', '#8B5207'],
+  alerts: ['#00897B', '#E0F1EF', '#006E62'], safety: ['#7B2CBF', '#EFE6F7', '#7B2CBF'],
+  courtroom: ['#9C6B00', '#F3EDE0', '#8C6000'], cold: ['#1E6FD9', '#E4EEFA', '#1B64C3'],
+  truecrime: ['#E0407A', '#FBE8EF', '#B33362'], watch: ['#2E7D32', '#E6EFE6', '#29702D']
+};
+const KCSS = Object.entries(KCOLORS).map(([k, [b, t, i]]) => `.k-${k}{--k:${b};--kt:${t};--ki:${i}}`).join('');
 const BY_KEY = {};
 const BY_SLUG = {};
 const WP_TO_KEY = {};
@@ -56,6 +64,10 @@ a{color:inherit;text-decoration:none}
 .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted)}
 .top .meta{margin-top:10px}
 .meta .c{font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+.meta .c[class*=k-]{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:6px;background:var(--kt);color:var(--ki);font-size:11px}
+.chip[class*=k-] span::before{content:"";width:8px;height:8px;border-radius:4px;background:var(--k);margin-right:7px;flex:none}
+.chip.on[class*=k-] span,.chip.on[class*=k-]:hover span{background:var(--kt);color:var(--ki);box-shadow:inset 0 0 0 1.5px var(--k)}
+.cat-head[class*=k-] h1::before{content:"";display:block;width:40px;height:4px;border-radius:2px;background:var(--k);margin-bottom:12px}
 .meta .n{font-weight:800;letter-spacing:.8px;color:var(--red)}
 .feed-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 6px}
 .feed-h b{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase}
@@ -108,10 +120,10 @@ footer p{margin:0}
 .cat-head h1{font-size:40px}
 .more-link{padding:0}
 .cats{display:grid;flex:0 0 560px;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 32px}
-.cat h2{margin:0;padding-top:10px;border-top:3px solid var(--ink);font-size:13px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}
+.cat h2{margin:0;padding-top:10px;border-top:3px solid var(--k, var(--ink));color:var(--ki, var(--ink));font-size:13px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}
 .cat ul{list-style:none;margin:0;padding:0}
 .cat li a{display:block;padding:11px 0;border-bottom:1px solid var(--soft);font-size:15px;font-weight:600;line-height:1.35}
-.cat .more{display:inline-flex;align-items:center;min-height:44px;font-size:13px;font-weight:700;color:var(--red)}
+.cat .more{display:inline-flex;align-items:center;min-height:44px;font-size:13px;font-weight:700;color:var(--ki, var(--red))}
 footer{padding:24px 0 40px}
 }`;
 
@@ -161,16 +173,16 @@ function redirect(loc, status) {
 function layout({ title, desc, path, preview, body, ld }) {
   const ga = preview ? '' : `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
   const bar = preview ? '<div class="pv" role="note">Private preview &middot; Live headlines in testing, above the archive from Nov 2025 to Feb 2026</div>' : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${e(title)}</title><meta name="description" content="${e(desc)}"><link rel="canonical" href="${SITE}${path}"><meta name="theme-color" content="#ffffff"><meta property="og:site_name" content="CrimeHer"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:url" content="${SITE}${path}"><meta name="twitter:card" content="summary"><link rel="icon" href="${FAVICON}"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=swap"><style>${CSS}</style>${ld ? `<script type="application/ld+json">${ld}</script>` : ''}${ga}</head><body>${bar}<a class="skip" href="#main">Skip to headlines</a>${body}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${e(title)}</title><meta name="description" content="${e(desc)}"><link rel="canonical" href="${SITE}${path}"><meta name="theme-color" content="#ffffff"><meta property="og:site_name" content="CrimeHer"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:url" content="${SITE}${path}"><meta name="twitter:card" content="summary"><link rel="icon" href="${FAVICON}"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=swap"><style>${CSS}${KCSS}</style>${ld ? `<script type="application/ld+json">${ld}</script>` : ''}${ga}</head><body>${bar}<a class="skip" href="#main">Skip to headlines</a>${body}</body></html>`;
 }
 function header(cat) {
-  const chip = (href, label, on) => `<a class="chip${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}><span>${e(label)}</span></a>`;
-  return `<header class="mast"><a class="wordmark" href="/">crimeher</a><div class="tag">Your Daily True Crime Briefing</div></header><nav class="chips" aria-label="Categories">${chip('/', 'All', !cat)}${CATS.map(c => chip('/' + c.slug, c.short, !!cat && cat.key === c.key)).join('')}</nav>`;
+  const chip = (href, label, on, key) => `<a class="chip${key ? ' k-' + key : ''}${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}><span>${e(label)}</span></a>`;
+  return `<header class="mast"><a class="wordmark" href="/">crimeher</a><div class="tag">Your Daily True Crime Briefing</div></header><nav class="chips" aria-label="Categories">${chip('/', 'All', !cat)}${CATS.map(c => chip('/' + c.slug, c.short, !!cat && cat.key === c.key, c.key)).join('')}</nav>`;
 }
 function itemHtml(r, now, showCat) {
   const fresh = now - Date.parse(r.published_at) < 3600000;
   const c = BY_KEY[r.category];
-  return `<li><a href="/go/${r.id}" target="_blank" rel="noopener"><span class="h">${e(r.headline)}</span><span class="meta">${fresh ? '<span class="n">NEW</span><span aria-hidden="true">&middot;</span>' : ''}${showCat && c ? `<span class="c">${e(c.short)}</span><span aria-hidden="true">&middot;</span>` : ''}<span>${ago(r.published_at, now)}</span></span></a></li>`;
+  return `<li><a href="/go/${r.id}" target="_blank" rel="noopener"><span class="h">${e(r.headline)}</span><span class="meta">${fresh ? '<span class="n">NEW</span><span aria-hidden="true">&middot;</span>' : ''}${showCat && c ? `<span class="c k-${c.key}">${e(c.short)}</span><span aria-hidden="true">&middot;</span>` : ''}<span>${ago(r.published_at, now)}</span></span></a></li>`;
 }
 
 async function renderPage(env, cat, preview) {
@@ -195,9 +207,9 @@ async function renderPage(env, cat, preview) {
   const rest = feed.slice(6).map(r => itemHtml(r, now, !cat)).join('');
   const empty = feed.length ? '' : '<p class="empty">Headlines are loading. Check back in a few minutes.</p>';
   const topCat = top && BY_KEY[top.category] ? BY_KEY[top.category].short : '';
-  const topHtml = top ? `<section class="top" aria-label="Top story"><div class="kick"><span class="dot"></span><span>Top story</span></div><h2><a href="/go/${top.id}" target="_blank" rel="noopener">${e(top.headline)}</a></h2><div class="meta"><span class="c">${e(topCat)}</span><span aria-hidden="true">&middot;</span><span>${ago(top.published_at, now)}</span></div></section>` : '';
-  const catHead = cat ? `<section class="cat-head"><h1>${e(cat.full)}</h1><p>${e(cat.desc)}</p></section>` : '<h1 class="sr">CrimeHer: Your Daily True Crime Briefing</h1>';
-  const aside = cat ? '' : `<aside class="cats" aria-label="Categories">${sections.map(s => `<section class="cat"><h2><a href="/${s.c.slug}">${e(s.c.short)}</a></h2><ul>${s.rows.map(r => `<li><a href="/go/${r.id}" target="_blank" rel="noopener">${e(r.headline)}</a></li>`).join('')}</ul><a class="more" href="/${s.c.slug}">More ${e(s.c.short)} &rarr;</a></section>`).join('')}</aside>`;
+  const topHtml = top ? `<section class="top" aria-label="Top story"><div class="kick"><span class="dot"></span><span>Top story</span></div><h2><a href="/go/${top.id}" target="_blank" rel="noopener">${e(top.headline)}</a></h2><div class="meta"><span class="c${top && BY_KEY[top.category] ? ' k-' + top.category : ''}">${e(topCat)}</span><span aria-hidden="true">&middot;</span><span>${ago(top.published_at, now)}</span></div></section>` : '';
+  const catHead = cat ? `<section class="cat-head k-${cat.key}"><h1>${e(cat.full)}</h1><p>${e(cat.desc)}</p></section>` : '<h1 class="sr">CrimeHer: Your Daily True Crime Briefing</h1>';
+  const aside = cat ? '' : `<aside class="cats" aria-label="Categories">${sections.map(s => `<section class="cat k-${s.c.key}"><h2><a href="/${s.c.slug}">${e(s.c.short)}</a></h2><ul>${s.rows.map(r => `<li><a href="/go/${r.id}" target="_blank" rel="noopener">${e(r.headline)}</a></li>`).join('')}</ul><a class="more" href="/${s.c.slug}">More ${e(s.c.short)} &rarr;</a></section>`).join('')}</aside>`;
   const label = cat ? cat.short : 'Latest';
   const body = `${header(cat)}<main id="main" class="wrap${cat ? ' is-cat' : ''}">${catHead}${topHtml}<div class="cols"><section class="feed" aria-label="${e(label)} headlines"><div class="feed-h"><b><span class="dot live"></span>${e(label)}</b><span class="upd">Updates every 15 min</span></div>${empty}<ol class="list">${first}</ol>${cat ? '' : SIGNUP}<ol class="list">${rest}</ol>${cat ? '<a class="more-link" href="/">All headlines &rarr;</a>' : ''}</section>${aside}</div></main>${FOOTER}`;
   const title = cat ? `${cat.full}: Latest Headlines | CrimeHer` : 'CrimeHer: Your Daily True Crime Briefing';
