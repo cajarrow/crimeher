@@ -68,7 +68,8 @@ REPEATS (one story, one headline)
 - possible_duplicate: it might repeat a recent headline but you can't tell.
 
 FLAGS (be honest; these send the story to Craig for review)
-- category_unsure: you aren't confident about the category. fit "unsure": you aren't sure the story belongs.
+- fit "unsure": you aren't sure the story belongs.
+- category_unsure: you aren't confident about the category (information only; still pick the closest category).
 - unclear_legal_status: the source is unclear on whether a named person is suspected, charged or convicted.
 - involves_minor: a minor is involved in any role (information only).
 - minor_accused: a minor is the suspect, the accused or the convicted person.
@@ -431,7 +432,7 @@ export async function decideNew(env, now, maxItems, kv) {
         const host = it.outlet || hostOf(it.url);
         const reasons = [];
         if (d.fit === 'unsure') reasons.push('fit unclear');
-        if (d.category_unsure) reasons.push('category unclear');
+        // Category doubt alone no longer holds a story (Craig, Nov 6): the closest category stands and he can change it on the desk.
         if (d.possible_duplicate) reasons.push('possible duplicate');
         if (d.unclear_legal_status) reasons.push('legal status unclear');
         if (h.names_minor) reasons.push('headline may name a minor');
