@@ -10,7 +10,7 @@ import { getKV, setKV } from './kv.js';
 
 export const BRIEFING = {
   from: 'CrimeHer <briefing@news.crimeher.com>',
-  replyTo: 'hello@crimeher.com',
+  replyTo: 'support@crimeher.com',
   segment: '44d226e7-79f7-4ae5-bfdc-ea946ca89668', // Resend segment "Daily Briefing"
   hourET: 7
 };

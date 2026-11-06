@@ -1,6 +1,6 @@
 // Plain pages: About, Contact, Privacy, Terms. Short, readable, and honest about how the site works.
-// hello@crimeher.com is an alias on the Namecheap Private Email mailbox (MX stays with Private Email).
-export const CONTACT = 'hello@crimeher.com';
+// support@crimeher.com is the Namecheap Private Email mailbox (MX stays with Private Email).
+export const CONTACT = 'support@crimeher.com';
 const UPDATED = 'November 6, 2026';
 const mail = `<a href="mailto:${CONTACT}">${CONTACT}</a>`;
 

@@ -21,7 +21,7 @@ One Cloudflare Worker and one D1 database. There's no build step and no framewor
 | `src/theme.js` | Category colors, shared by the site and the desk. |
 | `src/top.js` | The front page's Top story: Craig's pin (2, 6 or 12 hours, set on the desk), else an automatic pick chosen each minute by the cron job (the highest-interest story of the last 2 hours, held at least an hour; a story 2+ points stronger takes over early), else the newest Breaking headline. |
 | `src/kv.js` | Small settings store in D1 (`kv` table). |
-| `src/pages.js` | About, Contact, Privacy and Terms. The contact address (hello@crimeher.com) is an alias on the Namecheap Private Email mailbox. |
+| `src/pages.js` | About, Contact, Privacy and Terms. The contact address is support@crimeher.com, the Namecheap Private Email mailbox. |
 | `src/briefing.js` | The Daily Briefing email through Resend: syncs new signups to the "Daily Briefing" segment, builds the email from the Top story and the day's best headlines, and sends one broadcast a day at 7am Eastern once `BRIEFING_SEND` is `on`. Needs the `RESEND_API_KEY` secret and a `MAIL_ADDRESS` (the footer's postal address, required by law). Preview and test send at `/desk?view=briefing`. |
 | `src/probe.js` | Developer probe: tests outside sites from Cloudflare's network when a request is written to `kv` by hand. |
 | `src/icons.js` | Favicon, home-screen icons and the web manifest. Generated from `design/`. |
