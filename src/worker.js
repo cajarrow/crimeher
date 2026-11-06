@@ -6,6 +6,7 @@ import { KCSS } from './theme.js';
 import { FAVICON_SVG, PNG, MANIFEST } from './icons.js';
 import { getKV, setKV } from './kv.js';
 import { currentTop, chooseAutoTop } from './top.js';
+import { runProbe } from './probe.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
 const AI_PER_RUN = 40;      // new items the AI decides per run
@@ -286,6 +287,7 @@ async function runScheduled(event, env) {
   const feeds = await checkFeeds(env, now, FEEDS_PER_RUN);
   const ai = await decideNew(env, now, AI_PER_RUN, kv);
   try { await chooseAutoTop(env, now); } catch (err) { console.error('top story', String(err)); }
+  try { await runProbe(env); } catch (err) { console.error('probe', String(err)); }
   const added = feeds.reduce((n, f) => n + (f.added || 0), 0);
   if (!feeds.length && !ai.decided && !ai.errors) return;
   const failed = feeds.filter(f => !f.ok).map(f => `${f.id}: ${f.error}`);
