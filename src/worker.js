@@ -4,6 +4,8 @@ import { decideNew, estimateCost, MODEL } from './ai.js';
 import { deskUser, noteAccessTeam, lockedPage, renderDesk, deskAction, deskAdd } from './desk.js';
 import { KCSS } from './theme.js';
 import { FAVICON_SVG, PNG, MANIFEST } from './icons.js';
+import { getKV, setKV } from './kv.js';
+import { currentTop, chooseAutoTop } from './top.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
 const AI_PER_RUN = 40;      // new items the AI decides per run
@@ -193,8 +195,11 @@ async function renderPage(env, cat, preview) {
   if (cat) {
     feed = (await env.DB.prepare(`SELECT ${cols} FROM items WHERE status = 'published' AND category = ? ORDER BY published_at DESC LIMIT 50`).bind(cat.key).all()).results;
   } else {
+    // Top story: Craig's pin, else the automatic pick (src/top.js), else the newest Breaking headline.
+    const pick = await currentTop(env, now);
     const res = await env.DB.batch([
-      env.DB.prepare(`SELECT ${cols} FROM items WHERE status = 'published' AND category = 'breaking' ORDER BY published_at DESC LIMIT 1`),
+      pick ? env.DB.prepare(`SELECT ${cols} FROM items WHERE id = ? AND status = 'published'`).bind(pick.id)
+        : env.DB.prepare(`SELECT ${cols} FROM items WHERE status = 'published' AND category = 'breaking' ORDER BY published_at DESC LIMIT 1`),
       env.DB.prepare(`SELECT ${cols} FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT 41`),
       env.DB.prepare(`SELECT ${cols} FROM (SELECT ${cols}, ROW_NUMBER() OVER (PARTITION BY category ORDER BY published_at DESC) AS rn FROM items WHERE status = 'published') WHERE rn <= 4 ORDER BY published_at DESC`)
     ]);
@@ -251,13 +256,6 @@ async function legacy(env, slug, url) {
   const row = await env.DB.prepare('SELECT id, url, target_url, category, wp_id FROM items WHERE legacy_path = ?').bind('/' + slug + '/').first();
   return row ? redirect(dest(row, url), 301) : null;
 }
-async function getKV(env, k) {
-  const r = await env.DB.prepare('SELECT v FROM kv WHERE k = ?').bind(k).first();
-  return r ? r.v : null;
-}
-async function setKV(env, k, v) {
-  await env.DB.prepare('INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v').bind(k, String(v)).run();
-}
 async function status(env) {
   const r = await env.DB.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN target_url IS NOT NULL AND target_url <> 'none' THEN 1 ELSE 0 END) AS resolved, SUM(CASE WHEN target_url = 'none' THEN 1 ELSE 0 END) AS no_target FROM items WHERE wp_id IS NOT NULL").first();
   const [items, feeds, last] = await env.DB.batch([
@@ -286,6 +284,7 @@ async function runScheduled(event, env) {
   await syncSources(env, getKV, setKV);
   const feeds = await checkFeeds(env, now, FEEDS_PER_RUN);
   const ai = await decideNew(env, now, AI_PER_RUN, kv);
+  try { await chooseAutoTop(env, now); } catch (err) { console.error('top story', String(err)); }
   const added = feeds.reduce((n, f) => n + (f.added || 0), 0);
   if (!feeds.length && !ai.decided && !ai.errors) return;
   const failed = feeds.filter(f => !f.ok).map(f => `${f.id}: ${f.error}`);

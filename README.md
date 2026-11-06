@@ -19,6 +19,9 @@ One Cloudflare Worker and one D1 database. There's no build step and no framewor
 | `src/ai.js` | The AI step, in two passes: `claude-haiku-5-5` triages (fit, category, interest 0–10, repeats, review flags), then `claude-sonnet-5-5` writes three hook-first headlines from the feed item and the article's opening. The code enforces the hold rules, the 5-per-outlet daily cap, the last-resort list and a daily cost guard. `addByUrl` handles stories Craig adds from the desk. |
 | `src/desk.js` | The review desk at `/desk` (Cloudflare Access): Waiting, Live and Stats, plus `/desk/act` (publish, reject, save, pull, undo) and `/desk/add` (paste a link; the AI writes the headlines and the card waits for Craig). `/desk?add=<link>` does the same from a shortcut or bookmarklet. |
 | `src/theme.js` | Category colors, shared by the site and the desk. |
+| `src/top.js` | The front page's Top story: Craig's pin (2, 6 or 12 hours, set on the desk), else an automatic pick chosen each minute by the cron job (the highest-interest story of the last 2 hours, held at least an hour; a story 2+ points stronger takes over early), else the newest Breaking headline. |
+| `src/kv.js` | Small settings store in D1 (`kv` table). |
+| `src/icons.js` | Favicon, home-screen icons and the web manifest. Generated from `design/`. |
 | `migrations/` | D1 schema. Migrations 0001–0004 were applied through the Cloudflare API on Nov 5, 2026, so Wrangler's migration table doesn't list them. Don't re-run them. |
 | `test/` | Parser tests: `npm test`. |
 | `wrangler.jsonc` | Worker name, D1 binding `DB`, cron schedule. |

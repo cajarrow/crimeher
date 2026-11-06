@@ -64,3 +64,11 @@ test('hour-long cache writes are priced at 2x', () => {
   const u = { [WRITER_MODEL]: { in: 0, out: 0, cache_read: 0, cache_write: 1000000, cache_write_1h: 1000000 } };
   assert.equal(estimateCost(u), 4);
 });
+
+test('top story time left reads naturally', async () => {
+  const { timeLeft } = await import('../src/top.js');
+  const now = Date.parse('2026-11-06T10:00:00Z');
+  assert.equal(timeLeft('2026-11-06T16:00:00Z', now), '6h left');
+  assert.equal(timeLeft('2026-11-06T11:47:00Z', now), '1h 47m left');
+  assert.equal(timeLeft('2026-11-06T10:20:00Z', now), '20m left');
+});

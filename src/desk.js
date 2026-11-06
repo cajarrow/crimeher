@@ -5,6 +5,7 @@
 import { KCSS } from './theme.js';
 import { addByUrl } from './ai.js';
 import { FAVICON_SVG } from './icons.js';
+import { PIN_HOURS, currentTop, chooseAutoTop, pinTop, extendTop, unpinTop, restorePin, timeLeft } from './top.js';
 
 const CERTS = { team: '', at: 0, keys: [] };
 
@@ -137,10 +138,28 @@ button{font:inherit;cursor:pointer}
 .no{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
 .no:hover{border-color:var(--ink)}
 .yes{background:var(--ink);color:#fff;border:0}
-.is-live .acts{display:flex;justify-content:flex-end}
-.is-live .no{padding:0 22px;color:var(--red)}
-.is-live .yes{display:none;flex:1}
+.is-live .acts{display:flex;gap:8px}
+.is-live .no{padding:0 18px}
+.is-live .tops{margin-right:auto}
+.is-live .pull{color:var(--red)}
+.is-live .yes{display:none;flex:1;max-width:220px}
 .is-live.dirty .yes{display:block}
+.is-top .tops{display:none}
+.is-top .pull{margin-left:auto}
+.card.is-top{border-color:var(--ink);border-width:1.5px}
+.topbar{display:flex;align-items:center;gap:6px;margin:-14px -14px 0;padding:8px 8px 8px 14px;border-radius:14px 14px 0 0;background:var(--fill);font-size:13px;font-weight:700;color:var(--muted)}
+.topbar.on{background:var(--ink);color:#fff}
+.tb-l{flex:1}
+.tb{height:34px;padding:0 12px;border-radius:9px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-size:13px;font-weight:700}
+.topbar.on .tb{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
+.more{display:flex;justify-content:center;margin-top:-4px}
+.ghost{min-height:40px;padding:0 10px;background:none;border:0;font-size:14px;font-weight:700;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.ghost:hover{color:var(--ink)}
+.pinrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px;border-radius:12px;background:var(--fill)}
+.pinrow span{flex-basis:100%;font-size:13px;font-weight:700;color:var(--muted)}
+.pinrow button{height:42px;min-width:58px;padding:0 14px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:15px;font-weight:700;color:var(--ink)}
+.pinrow .def{background:var(--ink);border-color:var(--ink);color:#fff}
+.pinrow .x{margin-left:auto;min-width:0;border:0;background:none;color:var(--muted)}
 button:disabled{opacity:.5;cursor:default}
 .empty{grid-column:1/-1;text-align:center;padding:64px 20px;color:var(--muted)}
 .empty b{display:block;font-family:Newsreader,Georgia,serif;font-size:26px;color:var(--ink);margin:12px 0 4px}
@@ -219,12 +238,17 @@ export async function renderDesk(env, url, user, CATS) {
   const [rows, counts] = await env.DB.batch([
     view === 'held'
       ? env.DB.prepare(`SELECT ${HELD_COLS} FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
-      : env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, NULL AS hold_reason, flags, source_published_at,
-          (SELECT COUNT(*) FROM clicks c WHERE c.item_id = items.id) AS clicks
-          FROM items WHERE status = 'published' AND wp_id IS NULL ORDER BY published_at DESC LIMIT 80`),
+      : env.DB.prepare(`SELECT ${LIVE_COLS} FROM items WHERE status = 'published' AND wp_id IS NULL ORDER BY published_at DESC LIMIT 80`),
     heldQ
   ]);
-  const cards = rows.results.map(r => cardHtml(r, view, CATS, now)).join('');
+  // Live: the story in the site's top slot comes first, marked, pinned or automatic.
+  const top = view === 'live' ? await currentTop(env, now) : null;
+  let list = rows.results;
+  if (top) {
+    const t = list.find(r => r.id === top.id) || await env.DB.prepare(`SELECT ${LIVE_COLS} FROM items WHERE id = ?`).bind(top.id).first();
+    if (t) list = [t, ...list.filter(r => r.id !== top.id)];
+  }
+  const cards = list.map(r => cardHtml(r, view, CATS, now, top)).join('');
   const empty = view === 'held'
     ? `<div class="empty"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#E5F4E4"/><path d="M15 25l6 6 12-14" stroke="#1E6B3A" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>All clear</b>Nothing is waiting for you.</div>`
     : `<div class="empty"><b>Nothing live yet</b>New headlines show up here as they publish.</div>`;
@@ -234,7 +258,15 @@ export async function renderDesk(env, url, user, CATS) {
 }
 
 const HELD_COLS = 'id, url, headline, category, outlet, title_raw, hold_reason, flags, source_published_at, 0 AS clicks';
-function cardHtml(r, view, CATS, now) {
+const LIVE_COLS = `id, url, headline, category, outlet, title_raw, NULL AS hold_reason, flags, source_published_at,
+  (SELECT COUNT(*) FROM clicks c WHERE c.item_id = items.id) AS clicks`;
+function topbarHtml(top, now) {
+  return top.mode === 'pinned'
+    ? `<div class="topbar on"><span class="tb-l">&#9733; Top story &middot; ${timeLeft(top.until, now)}</span><button type="button" class="tb" data-act="extend">+2h</button><button type="button" class="tb" data-act="unpin">Unpin</button></div>`
+    : `<div class="topbar"><span class="tb-l">Top story now &middot; automatic</span><button type="button" class="tb" data-act="pinmenu">Pin it</button></div>`;
+}
+function cardHtml(r, view, CATS, now, top) {
+  const isTop = !!(top && top.id === r.id);
   const opts = CATS.map(k => `<option value="${k.key}"${k.key === r.category ? ' selected' : ''}>${e(k.short)}</option>`).join('');
   const reasons = (r.hold_reason || '').split(';').map(s => s.trim()).filter(Boolean);
   const warn = reasons.filter(s => s !== MINE).map(s => `<span>${e(REASON_LABEL[s] || s)}</span>`).join('');
@@ -250,9 +282,9 @@ function cardHtml(r, view, CATS, now) {
   const facts = [e(r.outlet || ''), ago(r.source_published_at, now)];
   if (view === 'live') facts.push(`<b>${n0(r.clicks)}</b>&nbsp;${r.clicks === 1 ? 'click' : 'clicks'}`);
   const acts = view === 'held'
-    ? `<div class="acts"><button type="button" class="btn no" data-act="reject">Reject</button><button type="button" class="btn yes" data-act="publish">Publish</button></div>`
-    : `<div class="acts"><button type="button" class="btn no" data-act="pull">Pull</button><button type="button" class="btn yes" data-act="save">Save changes</button></div>`;
-  return `<article class="card${view === 'live' ? ' is-live' : ''}" data-id="${r.id}">${why}
+    ? `<div class="acts"><button type="button" class="btn no" data-act="reject">Reject</button><button type="button" class="btn yes" data-act="publish">Publish</button></div><div class="more"><button type="button" class="ghost" data-act="pinmenu">Publish as top story</button></div>`
+    : `<div class="acts"><button type="button" class="btn no tops" data-act="pinmenu">&#9733; Top story</button><button type="button" class="btn no pull" data-act="pull">Pull</button><button type="button" class="btn yes" data-act="save">Save</button></div>`;
+  return `<article class="card${view === 'live' ? ' is-live' : ''}${isTop ? ' is-top' : ''}" data-id="${r.id}">${isTop ? topbarHtml(top, now) : ''}${why}
 <div class="meta"><select class="cat k-${e(r.category)}" aria-label="Category">${opts}</select><span>${facts.filter(Boolean).join(' &middot; ')}</span></div>
 <textarea class="hl" rows="2" aria-label="Headline">${e(head)}</textarea><div class="over"${head.length > LIMIT ? '' : ' hidden'}>${head.length}/${LIMIT} &middot; too long</div>${altHtml}
 <div class="src"><span class="lbl">Original</span>${e(r.title_raw)} <a href="${e(r.url)}" target="_blank" rel="noopener">Read&nbsp;article&nbsp;&#8599;</a></div>${acts}</article>`;
@@ -326,38 +358,53 @@ async function renderStats(env, url, CATS, now) {
 <section class="panel"><h2>Top outlets clicked</h2>${outl}</section></div></div>`;
 }
 
-// Client script. Plain strings only (no template literals) so it can sit inside this template.
-const DESK_JS = view => `(()=>{const L=document.getElementById('list'),N=document.getElementById('n'),T=document.getElementById('toast'),M=document.getElementById('tmsg'),U=document.getElementById('undo'),V='${view}',MAX=${LIMIT};let timer,last;
-const label={publish:'Published',reject:'Rejected',save:'Saved',pull:'Pulled from the site',restore:'Restored'};
+// Client script, kept as plain text (String.raw: no template escapes). __VIEW__ and __MAX__ are filled per page.
+const CLIENT_JS = String.raw`(()=>{const L=document.getElementById('list'),N=document.getElementById('n'),T=document.getElementById('toast'),M=document.getElementById('tmsg'),U=document.getElementById('undo'),V='__VIEW__',MAX=__MAX__;let timer,undoFn=null;
+const label={publish:'Published',reject:'Rejected',save:'Saved',pull:'Pulled from the site'};
 async function post(b){const r=await fetch('/desk/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json()}
-function toast(msg,undo){M.textContent=msg;U.style.display=undo?'':'none';T.classList.add('on');clearTimeout(timer);timer=setTimeout(()=>T.classList.remove('on'),undo?6000:2500)}
+function toast(msg,fn){M.textContent=msg;undoFn=fn||null;U.style.display=fn?'':'none';T.classList.add('on');clearTimeout(timer);timer=setTimeout(()=>{T.classList.remove('on');undoFn=null},fn?6000:2500)}
 function count(d){if(!N)return;const n=Math.max(0,(+N.textContent||0)+d);N.textContent=n;N.classList.toggle('zero',!n)}
-function measure(ta){const card=ta.closest('.card'),o=card.querySelector('.over'),n=ta.value.trim().length;o.hidden=n<=MAX;o.textContent=n+'/'+MAX+' \\u00b7 too long'}
+function measure(ta){const card=ta.closest('.card'),o=card.querySelector('.over'),n=ta.value.trim().length;o.hidden=n<=MAX;o.textContent=n+'/'+MAX+' · too long'}
+function hrs(h){return h+' hours'}
+function placeTop(top){L.querySelectorAll('.topbar').forEach(x=>x.remove());L.querySelectorAll('.card.is-top').forEach(c=>c.classList.remove('is-top'));if(!top)return;const c=L.querySelector('.card[data-id="'+top.id+'"]');if(!c){location.reload();return}const t=document.createElement('div');t.innerHTML=top.html;c.prepend(t.firstElementChild);c.classList.add('is-top');L.prepend(c);c.scrollIntoView({behavior:'smooth',block:'nearest'})}
+function menu(card,btn){const open=card.querySelector('.pinrow');L.querySelectorAll('.pinrow').forEach(r=>r.remove());if(open)return;const r=document.createElement('div');r.className='pinrow';r.innerHTML='<span>'+(V==='held'?'Publish as top story for':'Keep it on top for')+'</span><button type="button" data-pin="2">2h</button><button type="button" data-pin="6" class="def">6h</button><button type="button" data-pin="12">12h</button><button type="button" data-pin="0" class="x">Cancel</button>';btn.closest('.acts,.topbar,.more').after(r)}
+function removeCard(card,msg){card.classList.add('gone');setTimeout(()=>{card.hidden=true},260);if(V==='held')count(-1);
+toast(msg,async()=>{await post({id:+card.dataset.id,action:'restore',to:V});card.hidden=false;requestAnimationFrame(()=>card.classList.remove('gone'));card.querySelectorAll('button').forEach(b=>b.disabled=false);if(V==='held')count(1)})}
+function fields(card){return{headline:card.querySelector('.hl').value.trim(),category:card.querySelector('.cat').value}}
 L.addEventListener('input',ev=>{const t=ev.target;if(!t.classList.contains('hl'))return;measure(t);t.closest('.card').classList.add('dirty')});
 L.addEventListener('change',ev=>{const t=ev.target;if(!t.classList.contains('cat'))return;t.className='cat k-'+t.value;t.closest('.card').classList.add('dirty')});
 L.addEventListener('click',async ev=>{const alt=ev.target.closest('.alt');if(alt){const card=alt.closest('.card'),ta=card.querySelector('.hl'),cur=ta.value;ta.value=alt.dataset.alt;alt.dataset.alt=cur;alt.textContent=cur;alt.classList.remove('swapped');void alt.offsetWidth;alt.classList.add('swapped');measure(ta);card.classList.add('dirty');return}
-const b=ev.target.closest('button[data-act]');if(!b)return;const card=b.closest('.card'),act=b.dataset.act,btns=card.querySelectorAll('button');
-const body={id:+card.dataset.id,action:act,headline:card.querySelector('.hl').value.trim(),category:card.querySelector('.cat').value};
-btns.forEach(x=>x.disabled=true);
-try{await post(body);if(act==='save'){toast(label.save);card.classList.remove('dirty');btns.forEach(x=>x.disabled=false);return}
-last={card,id:body.id,from:V};card.classList.add('gone');setTimeout(()=>{card.hidden=true},260);if(V==='held')count(-1);toast(label[act],true)}
-catch(err){btns.forEach(x=>x.disabled=false);toast('Didn\\'t save. Try again.')}});
-U.addEventListener('click',async()=>{const x=last;if(!x)return;last=null;try{await post({id:x.id,action:'restore',to:x.from});x.card.hidden=false;requestAnimationFrame(()=>x.card.classList.remove('gone'));x.card.querySelectorAll('button').forEach(b=>b.disabled=false);if(x.from==='held')count(1);T.classList.remove('on')}catch(e){last=x;toast('Couldn\\'t undo.')}});
+const pb=ev.target.closest('button[data-pin]');
+if(pb){const card=pb.closest('.card'),row=pb.closest('.pinrow'),h=+pb.dataset.pin;if(!h){row.remove();return}const btns=card.querySelectorAll('button');btns.forEach(x=>x.disabled=true);
+try{if(V==='held'){await post(Object.assign({id:+card.dataset.id,action:'publish',pin:h},fields(card)));row.remove();removeCard(card,'Published as top story for '+hrs(h))}
+else{const j=await post({id:+card.dataset.id,action:'pin',hours:h});row.remove();btns.forEach(x=>x.disabled=false);placeTop(j.top);toast('Top story for '+hrs(h),async()=>{const k=await post({action:'pin_restore',prev:j.prev});placeTop(k.top)})}}
+catch(err){btns.forEach(x=>x.disabled=false);toast('Didn\'t save. Try again.')}return}
+const b=ev.target.closest('button[data-act]');if(!b)return;const card=b.closest('.card'),act=b.dataset.act;
+if(act==='pinmenu'){menu(card,b);return}
+const btns=card.querySelectorAll('button');btns.forEach(x=>x.disabled=true);
+try{if(act==='extend'||act==='unpin'){const j=await post({action:act});btns.forEach(x=>x.disabled=false);placeTop(j.top);toast(act==='extend'?'Extended 2 hours':'Top story is back to automatic');return}
+await post(Object.assign({id:+card.dataset.id,action:act},fields(card)));
+if(act==='save'){toast(label.save);card.classList.remove('dirty');btns.forEach(x=>x.disabled=false);return}
+removeCard(card,label[act])}
+catch(err){btns.forEach(x=>x.disabled=false);toast('Didn\'t save. Try again.')}});
+U.addEventListener('click',async()=>{const fn=undoFn;if(!fn)return;undoFn=null;T.classList.remove('on');try{await fn()}catch(e){toast('Couldn\'t undo.')}});
 const F=document.getElementById('add');
 if(F){const I=document.getElementById('addurl'),AM=document.getElementById('addmsg'),AB=F.querySelector('button');let busy=false;
 function say(m,err){AM.textContent=m;AM.hidden=!m;AM.classList.toggle('err',!!err)}
 function flash(c){c.classList.remove('new');void c.offsetWidth;c.classList.add('new')}
-async function add(){const u=I.value.trim();if(busy)return;if(!u){I.focus();return}if(!/^https?:\\/\\/[^\\s.]+\\.\\S+$/i.test(u)){say('Paste a full link, starting with https://',true);return}
+async function add(){const u=I.value.trim();if(busy)return;if(!u){I.focus();return}if(!/^https?:\/\/[^\s.]+\.\S+$/i.test(u)){say('Paste a full link, starting with https://',true);return}
 busy=true;F.classList.add('busy');AB.disabled=true;I.readOnly=true;AB.textContent='Writing…';say('Reading the article and writing headlines…');
 try{const r=await fetch('/desk/add',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({url:u})});const j=await r.json().catch(()=>({error:'Something went wrong. Try again.'}));
 if(j.html){const t=document.createElement('div');t.innerHTML=j.html;const c=t.firstElementChild,em=L.querySelector('.empty');if(em)em.remove();L.prepend(c);flash(c);count(1);I.value='';say('');c.scrollIntoView({behavior:'smooth',block:'nearest'});toast('Added. Check it, then publish.')}
 else{say(j.error||'Something went wrong. Try again.',true);const c=j.id&&L.querySelector('.card[data-id="'+j.id+'"]');if(c){flash(c);c.scrollIntoView({behavior:'smooth',block:'center'})}}}
-catch(e){say('Couldn\\'t reach the desk. Check your connection and try again.',true)}
+catch(e){say('Couldn\'t reach the desk. Check your connection and try again.',true)}
 finally{busy=false;F.classList.remove('busy');AB.disabled=false;I.readOnly=false;AB.textContent='Add'}}
 F.addEventListener('submit',ev=>{ev.preventDefault();add()});
-I.addEventListener('paste',()=>setTimeout(()=>{if(/^https?:\\/\\/\\S+$/i.test(I.value.trim()))add()},0));
+I.addEventListener('paste',()=>setTimeout(()=>{if(/^https?:\/\/\S+$/i.test(I.value.trim()))add()},0));
 I.addEventListener('input',()=>{if(AM.classList.contains('err'))say('')});
-const q=new URLSearchParams(location.search).get('add');if(q){I.value=q;history.replaceState(null,'','/desk');add()}}})();`;
+const q=new URLSearchParams(location.search).get('add');if(q){I.value=q;history.replaceState(null,'','/desk');add()}}
+})();`;
+const DESK_JS = view => CLIENT_JS.replace('__VIEW__', view).replace('__MAX__', String(LIMIT));
 
 // POST /desk/add {url}: the AI reads the page and writes the headlines; the card comes back ready to show.
 export async function deskAdd(req, env, user, CATS, kv) {
@@ -384,6 +431,28 @@ export async function deskAction(req, env, user, CATS) {
   const headline = String(b.headline || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   const now = new Date().toISOString();
   const who = 'desk: ' + user;
+  const ms = Date.now();
+  const out = o => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  // Top story controls.
+  if (['pin', 'extend', 'unpin', 'pin_restore'].includes(b.action)) {
+    let prev = null;
+    if (b.action === 'pin') {
+      const hours = Number(b.hours);
+      if (!PIN_HOURS.includes(hours)) return new Response('Pick 2, 6 or 12 hours', { status: 400 });
+      if (!await env.DB.prepare(`SELECT 1 FROM items WHERE id = ? AND status = 'published'`).bind(id).first()) return new Response('Not live', { status: 409 });
+      prev = await pinTop(env, id, hours, ms);
+    } else if (b.action === 'extend') {
+      if (!await extendTop(env, 2, ms)) return new Response('Nothing is pinned', { status: 409 });
+    } else if (b.action === 'unpin') {
+      await unpinTop(env);
+      await chooseAutoTop(env, ms);
+    } else {
+      const p = b.prev && typeof b.prev === 'object' && Number.isInteger(Number(b.prev.id)) && Number.isFinite(Date.parse(b.prev.until)) ? { id: Number(b.prev.id), until: b.prev.until, at: b.prev.at } : null;
+      await restorePin(env, p);
+    }
+    const top = await currentTop(env, ms);
+    return out({ ok: true, prev, top: top ? { id: top.id, html: topbarHtml(top, ms) } : null });
+  }
   let stmt;
   if (b.action === 'publish') {
     if (!headline) return new Response('Headline required', { status: 400 });
@@ -402,5 +471,7 @@ export async function deskAction(req, env, user, CATS) {
   } else return new Response('Unknown action', { status: 400 });
   const r = await stmt.run();
   if (!r.meta.changes) return new Response('Already changed', { status: 409 });
+  if (b.action === 'publish' && PIN_HOURS.includes(Number(b.pin))) await pinTop(env, id, Number(b.pin), ms);
+  if (b.action === 'pull' || (b.action === 'restore' && b.to !== 'live')) await unpinTop(env, id);
   return new Response(JSON.stringify({ ok: true }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 }
