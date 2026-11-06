@@ -314,7 +314,7 @@ const n0 = x => Number(x || 0).toLocaleString('en-US');
 async function renderStats(env, url, CATS, now) {
   const key = PERIODS[url.searchParams.get('p')] ? url.searchParams.get('p') : '24h';
   const since = new Date(now - PERIODS[key].ms).toISOString();
-  const [tot, top, byCat, outlets, pipe] = await env.DB.batch([
+  const [tot, top, byCat, outlets, pipe, subs] = await env.DB.batch([
     env.DB.prepare(`SELECT COUNT(*) AS clicks, SUM(preview) AS preview FROM clicks WHERE at > ?`).bind(since),
     env.DB.prepare(`SELECT i.id, COALESCE(i.headline, i.title_raw) AS headline, i.category, COALESCE(i.outlet, 'archive') AS outlet, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY i.id ORDER BY n DESC, MAX(c.at) DESC LIMIT 10`).bind(since),
     env.DB.prepare(`SELECT i.category AS cat, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY i.category`).bind(since),
@@ -327,8 +327,10 @@ async function renderStats(env, url, CATS, now) {
         SUM(status = 'held') AS waiting,
         SUM(status = 'expired' AND decided_at > ?) AS expired,
         SUM(status = 'rejected' AND decided_at > ? AND COALESCE(ai_reason, '') NOT LIKE 'desk:%') AS ai_rej
-      FROM items WHERE wp_id IS NULL`).bind(since, since, since, since, since)
+      FROM items WHERE wp_id IS NULL`).bind(since, since, since, since, since),
+    env.DB.prepare(`SELECT COUNT(*) AS total, SUM(created_at > ?) AS fresh FROM signups`).bind(since)
   ]);
+  const sg = subs.results[0] || {};
   const t = tot.results[0] || {};
   const p = pipe.results[0] || {};
   const live = (p.ai_pub || 0) + (p.desk_pub || 0);
@@ -341,8 +343,8 @@ async function renderStats(env, url, CATS, now) {
     ['Clicks', n0(t.clicks)],
     ['Headlines live', n0(live)],
     ['Clicks per headline', per ? per.toFixed(1) : '0'],
-    ['Waiting for you', n0(p.waiting)]
-  ].map(([l, v]) => `<div class="tile"><div class="tv">${v}</div><div class="tl">${l}</div></div>`).join('');
+    ['Email signups', n0(sg.total), sg.fresh ? `+${n0(sg.fresh)} in this period` : '']
+  ].map(([l, v, sub]) => `<div class="tile"><div class="tv">${v}</div><div class="tl">${l}${sub ? ` &middot; ${sub}` : ''}</div></div>`).join('');
   const short = Object.fromEntries(CATS.map(c => [c.key, c.short]));
   const topHtml = top.results.length
     ? `<ol class="rank">${top.results.map(r => `<li class="k-${e(r.category)}"><span class="h">${e(r.headline)}</span><span class="m"><i aria-hidden="true"></i><b>${n0(r.n)}</b> ${r.n === 1 ? 'click' : 'clicks'} &middot; ${e(short[r.category] || r.category)} &middot; ${e(r.outlet)}</span></li>`).join('')}</ol>`

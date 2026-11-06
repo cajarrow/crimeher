@@ -7,6 +7,7 @@ import { FAVICON_SVG, PNG, MANIFEST } from './icons.js';
 import { getKV, setKV } from './kv.js';
 import { currentTop, chooseAutoTop } from './top.js';
 import { runProbe } from './probe.js';
+import { PAGES } from './pages.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
 const AI_PER_RUN = 40;      // new items the AI decides per run
@@ -32,8 +33,9 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const UA = { 'User-Agent': 'CrimeHer-archive/1.0 (+https://crimeher.com)' };
 const HOME_DESC = "The day's true-crime headlines in one place: breaking news, missing persons, alerts, trials, cold cases and more. Every headline links to the original reporting.";
 const FAVICON = 'data:image/svg+xml,' + encodeURIComponent(FAVICON_SVG);
-const FOOTER = '<footer><p>Every headline links to the original reporting.</p><p>&copy; 2026 CrimeHer</p></footer>';
-const SIGNUP = '<section class="signup" aria-labelledby="su-h"><div class="txt"><h2 id="su-h">Get the Daily Briefing</h2><p>The day&#39;s top true-crime headlines, in your inbox daily.</p></div><form class="frm"><label for="su-e">Email address</label><div class="row"><input id="su-e" name="email" type="email" placeholder="you@example.com" disabled><button type="submit" disabled>Sign up</button></div><p class="soon">Signups open at launch.</p></form></section>';
+const FOOTER = '<footer><nav class="foot" aria-label="About CrimeHer"><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav><p>Every headline links to the original reporting.</p><p>&copy; 2026 CrimeHer</p></footer>';
+const SIGNUP = '<section class="signup" id="signup" aria-labelledby="su-h"><div class="txt"><h2 id="su-h">Get the Daily Briefing</h2><p>The day&#39;s top true-crime headlines, in your inbox every morning.</p></div><form class="frm" action="/subscribe" method="post"><label for="su-e">Email address</label><div class="row"><input id="su-e" name="email" type="email" placeholder="you@example.com" autocomplete="email" required><button type="submit">Sign up</button></div><input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"><p class="soon" role="status">Free. Unsubscribe anytime.</p></form></section>'
+  + '<script>(()=>{const f=document.querySelector(".signup form");if(!f)return;const s=f.querySelector(".soon"),b=f.querySelector("button");f.addEventListener("submit",async ev=>{ev.preventDefault();b.disabled=true;s.textContent="Signing you up\u2026";try{const r=await fetch("/subscribe",{method:"POST",headers:{accept:"application/json"},body:new FormData(f)});const j=await r.json();if(!j.ok)throw new Error(j.error||"");f.closest(".signup").classList.add("done");f.innerHTML="<p class=\\"ok\\">You\u2019re in. Watch your inbox for the Daily Briefing.</p>"}catch(e){b.disabled=false;s.textContent=e.message||"That didn\u2019t work. Try again?"}})})();</script>';
 const CSS = `:root{--ink:#141414;--muted:#5F6368;--line:#E8E6E1;--soft:#EFEDE9;--chip:#F1F0ED;--card:#F4F3F0;--red:#B3261E}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -85,6 +87,19 @@ a{color:inherit;text-decoration:none}
 .signup button{flex:none;height:44px;padding:0 16px;border:0;border-radius:10px;background:var(--ink);color:#fff;font:inherit;font-size:15px;font-weight:700}
 .signup input:disabled,.signup button:disabled{opacity:.6}
 .signup .soon{margin:8px 0 0;font-size:12px;color:var(--muted)}
+.signup .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.signup .ok{margin:0;font-size:16px;font-weight:700;line-height:1.4}
+.signup.done{background:#E9F4EA}
+.foot{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 20px;margin-bottom:10px}
+.foot a{display:inline-flex;align-items:center;min-height:32px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none}
+.foot a:hover{text-decoration:underline}
+.page{max-width:680px;margin:0 auto;padding:28px 20px 8px;font-size:17px;line-height:1.6}
+.page h1{margin:0 0 10px;font-family:Newsreader,Georgia,serif;font-weight:800;font-size:36px;line-height:1.1;letter-spacing:-.4px}
+.page h2{margin:28px 0 6px;font-size:13px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.page .lede{font-size:19px;color:#3C4043}
+.page ul{padding-left:20px}
+.page li{margin:6px 0}
+.page a{color:var(--ink);font-weight:600}
 .cat-head{padding:20px 20px 0}
 .cat-head h1{margin:0;font-family:Newsreader,Georgia,serif;font-weight:800;font-size:30px;line-height:1.1}
 .cat-head p{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--muted)}
@@ -228,7 +243,7 @@ function notFound(preview) {
   return layout({ title: 'Page not found | CrimeHer', desc: HOME_DESC, path: '/', preview, body, ld: '' });
 }
 function sitemap() {
-  const urls = ['/'].concat(CATS.map(c => '/' + c.slug));
+  const urls = ['/'].concat(CATS.map(c => '/' + c.slug), Object.keys(PAGES));
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>${SITE}${u}</loc><changefreq>hourly</changefreq></url>`).join('')}</urlset>\n`;
 }
 function llms() {
@@ -339,6 +354,26 @@ async function backfill(env) {
   }
 }
 
+// Daily Briefing signup. Stores the address in D1 until the email service is connected.
+// Works with or without JavaScript: JSON answer for the page script, a redirect back otherwise.
+const EMAIL_RE = /^[^\s@<>"]{1,64}@[^\s@<>"]+\.[a-z]{2,}$/i;
+async function subscribe(req, env, url) {
+  const wantsJson = (req.headers.get('accept') || '').includes('application/json');
+  const done = (ok, error) => wantsJson
+    ? new Response(JSON.stringify(ok ? { ok: true } : { ok: false, error }), { status: ok ? 200 : 400, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } })
+    : redirect(ok ? '/?subscribed=1#signup' : '/?subscribed=0#signup', 303);
+  const origin = req.headers.get('origin');
+  if (origin && origin !== url.origin) return done(false, 'Please sign up on crimeher.com.');
+  let form;
+  try { form = await req.formData(); } catch { return done(false, 'Please enter your email address.'); }
+  if (form.get('website')) return done(true); // a bot filled the hidden field
+  const email = String(form.get('email') || '').trim().toLowerCase();
+  if (email.length > 254 || !EMAIL_RE.test(email)) return done(false, 'That email address doesn’t look right.');
+  const from = (() => { try { return new URL(req.headers.get('referer') || '').pathname; } catch { return null; } })();
+  await env.DB.prepare('INSERT OR IGNORE INTO signups (email, created_at, source) VALUES (?, ?, ?)').bind(email, new Date().toISOString(), from).run();
+  return done(true);
+}
+
 async function route(req, url, env, ctx, preview) {
   const p = url.pathname;
   if (p === '/desk' || p.startsWith('/desk/')) {
@@ -350,8 +385,13 @@ async function route(req, url, env, ctx, preview) {
     if (p === '/desk' && req.method === 'GET') return renderDesk(env, url, user, CATS);
     return text('Not found', 404);
   }
+  if (p === '/subscribe' && req.method === 'POST') return subscribe(req, env, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') return text('Method not allowed', 405);
   if (p === '/') return html(await renderPage(env, null, preview));
+  if (PAGES[p]) {
+    const pg = PAGES[p];
+    return html(layout({ title: pg.title + ' | CrimeHer', desc: pg.desc, path: p, preview, body: `${header(null)}<main id="main" class="wrap"><article class="page">${pg.body}</article></main>${FOOTER}` }));
+  }
   if (p === '/robots.txt') return text(preview ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /desk\nDisallow: /go/\n\nSitemap: ${SITE}/sitemap.xml\n`);
   if (p === '/sitemap.xml') return xml(sitemap());
   if (p === '/llms.txt') return text(llms());
