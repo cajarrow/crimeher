@@ -51,6 +51,7 @@ INTEREST (0 to 10): how badly a CrimeHer reader would want to click. The board r
 - 7-8: a strong hook. An unusual detail, a betrayal, a gripping victim or survivor story, a notable verdict, a cold case cracked.
 - 5-6: solid but routine. An ordinary arrest, shooting or sentencing with nothing unusual.
 - 0-4: no hook. Procedural updates, minor incidents, crime statistics, a story readers have already seen.
+A strange, ironic or deeply personal detail lifts a routine crime to 7 or 8. Calibration: "man fatally shot nephew's wife amid argument over missing cow" = 8. "Ex-deputy accused of tracking estranged wife using plate cameras: 'Started on Valentine's Day'" = 8. "Armed man peeks through 911 caller's tent" = 7. "Foster mother charged after missing girl found dead in car trunk" = 9. "Man sentenced to 25 years for killing brother" with nothing more = 5. "SWAT standoff ends with arrest" = 4.
 public_service: true for an active missing-person search, an AMBER or Silver Alert, a wanted fugitive, or a scam or safety warning readers can act on. These run whatever their interest.
 
 REPEATS (one story, one headline)
@@ -116,7 +117,7 @@ FLAGS
 - identity_detail: your chosen headline carries immigration status, nationality, race, sexuality or sex.
 - confidence: 0 to 1, your confidence the chosen headline is accurate, fair to the source and follows these rules. It measures the headline, not how disturbing the story is.
 
-Return one entry per item through the record_headlines tool.`;
+Always answer by calling the record_headlines tool once, with one entry per story and no other text.`;
 
 const CATS_ENUM = ['breaking', 'missing', 'alerts', 'safety', 'courtroom', 'cold', 'truecrime', 'watch'];
 const TRIAGE_TOOL = {
@@ -179,7 +180,7 @@ const WRITER_TOOL = {
   }
 };
 
-async function callClaude(env, model, system, tool, userText, usage) {
+async function callClaude(env, model, system, tool, userText, usage, forceTool = true) {
   const res = await fetch((env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com') + '/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
@@ -188,7 +189,7 @@ async function callClaude(env, model, system, tool, userText, usage) {
       max_tokens: 8000,
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       tools: [tool],
-      tool_choice: { type: 'tool', name: tool.name },
+      tool_choice: forceTool ? { type: 'tool', name: tool.name } : { type: 'auto' },
       messages: [{ role: 'user', content: userText }]
     }),
     signal: AbortSignal.timeout(120000)
@@ -202,8 +203,11 @@ async function callClaude(env, model, system, tool, userText, usage) {
   t.cache_read += u.cache_read_input_tokens || 0;
   t.cache_write += u.cache_creation_input_tokens || 0;
   const block = (data.content || []).find(b => b.type === 'tool_use');
-  if (!block || !block.input) throw new Error(`${model} returned no tool output`);
-  return block.input;
+  if (block && block.input) return block.input;
+  const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch { /* fall through */ } }
+  throw new Error(`${model} returned no tool output`);
 }
 
 export function estimateCost(usage) {
@@ -311,7 +315,7 @@ export async function decideNew(env, now, maxItems, kv) {
       const group = toWrite.slice(w, w + WRITER_BATCH);
       const writeText = 'STORIES:\n\n' + group.map((g, n) => `[${n}] Outlet: ${g.it.outlet || g.it.source_name}\nTitle: ${g.it.title_raw}\nSummary: ${g.it.summary_raw || '(none)'}\nCategory: ${g.category}${g.d.involves_minor ? '\nInvolves a minor: yes' : ''}`).join('\n\n');
       let written;
-      try { written = (await callClaude(env, WRITER_MODEL, WRITER_PROMPT, WRITER_TOOL, writeText, stats.usage)).headlines || []; }
+      try { written = (await callClaude(env, WRITER_MODEL, WRITER_PROMPT, WRITER_TOOL, writeText, stats.usage, false)).headlines || []; }
       catch (err) { console.error('writer failed', String(err)); stats.errors++; break; }
       const wByIdx = new Map(written.map(h => [h.i, h]));
       for (let n = 0; n < group.length; n++) {
