@@ -8,6 +8,7 @@ import { getKV, setKV } from './kv.js';
 import { currentTop, chooseAutoTop } from './top.js';
 import { runProbe } from './probe.js';
 import { PAGES } from './pages.js';
+import { syncContacts, maybeSendBriefing } from './briefing.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
 const AI_PER_RUN = 40;      // new items the AI decides per run
@@ -303,6 +304,8 @@ async function runScheduled(event, env) {
   const ai = await decideNew(env, now, AI_PER_RUN, kv);
   try { await chooseAutoTop(env, now); } catch (err) { console.error('top story', String(err)); }
   try { await runProbe(env); } catch (err) { console.error('probe', String(err)); }
+  try { await syncContacts(env); } catch (err) { console.error('signup sync', String(err)); }
+  try { const sent = await maybeSendBriefing(env, now, CATS); if (sent) console.log('briefing', JSON.stringify(sent)); } catch (err) { console.error('briefing', String(err)); }
   const added = feeds.reduce((n, f) => n + (f.added || 0), 0);
   if (!feeds.length && !ai.decided && !ai.errors) return;
   const failed = feeds.filter(f => !f.ok).map(f => `${f.id}: ${f.error}`);

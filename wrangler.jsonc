@@ -17,7 +17,9 @@
   // Review desk access. ACCESS_TEAM_DOMAIN is Craig's Cloudflare Access team URL (not a secret).
   "vars": {
     "DESK_EMAILS": "craig@jarrow.net",
-    "ACCESS_TEAM_DOMAIN": "https://throbbing-shape-2a98.cloudflareaccess.com"
+    "ACCESS_TEAM_DOMAIN": "https://throbbing-shape-2a98.cloudflareaccess.com",
+    // Links in the Daily Briefing. Switch to https://crimeher.com at cutover.
+    "SITE_URL": "https://crimeher.craig-d0d.workers.dev"
   },
   // Every minute while the archive's links resolve. Change to "*/15 * * * *" when ingest ships.
   "triggers": { "crons": ["* * * * *"] }

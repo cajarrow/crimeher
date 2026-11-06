@@ -1,5 +1,5 @@
 // Plain pages: About, Contact, Privacy, Terms. Short, readable, and honest about how the site works.
-// The contact address starts working once Cloudflare Email Routing is set up at cutover.
+// hello@crimeher.com is an alias on the Namecheap Private Email mailbox (MX stays with Private Email).
 export const CONTACT = 'hello@crimeher.com';
 const UPDATED = 'November 6, 2026';
 const mail = `<a href="mailto:${CONTACT}">${CONTACT}</a>`;

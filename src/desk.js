@@ -5,6 +5,7 @@
 import { KCSS } from './theme.js';
 import { addByUrl } from './ai.js';
 import { FAVICON_SVG } from './icons.js';
+import { buildBriefing, sendTest, briefingStatus } from './briefing.js';
 import { PIN_HOURS, currentTop, chooseAutoTop, pinTop, extendTop, unpinTop, restorePin, setRed, timeLeft } from './top.js';
 
 const CERTS = { team: '', at: 0, keys: [] };
@@ -211,7 +212,19 @@ button:disabled{opacity:.5;cursor:default}
 .plain li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--soft);font-size:14px}
 .plain li:first-child{border-top:0;padding-top:2px}
 .plain b{font-variant-numeric:tabular-nums}
-.none{margin:4px 0;color:var(--muted);font-size:14px}`;
+.none{margin:4px 0;color:var(--muted);font-size:14px}
+.tlink{display:block;text-decoration:none;color:inherit}
+.tlink:hover{border-color:var(--ink)}
+.tgo{margin-top:6px;font-size:13px;font-weight:700;color:var(--ink)}
+.brief{margin-bottom:12px}
+.bst{margin:0 0 12px;font-size:14px;color:#3C4043}
+.bmeta{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 14px;font-size:14px}
+.bmeta dt{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding-top:2px}
+.bmeta dd{margin:0;font-weight:600}
+.bact{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bact .btn{padding:0 22px}
+#bmsg{font-size:14px;font-weight:600;color:var(--muted)}
+.bframe{display:block;width:100%;height:1400px;border:1px solid var(--line);border-radius:16px;background:#F4F3F0}`;
 
 function page(title, body, script) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><title>${e(title)}</title><meta name="theme-color" content="#ffffff"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="CH Desk"><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(FAVICON_SVG)}"><link rel="apple-touch-icon" href="/desk-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,800&display=swap"><style>${DESK_CSS}${KCSS}</style></head><body>${body}${script ? `<script>${script}</script>` : ''}</body></html>`;
@@ -239,8 +252,19 @@ const ADD_FORM = `<form class="add" id="add" autocomplete="off" novalidate><inpu
 export async function renderDesk(env, url, user, CATS) {
   const now = Date.now();
   const v = url.searchParams.get('view');
-  const view = v === 'live' ? 'live' : v === 'stats' ? 'stats' : 'held';
+  const view = v === 'live' ? 'live' : v === 'stats' ? 'stats' : v === 'briefing' ? 'briefing' : 'held';
   const heldQ = env.DB.prepare(`SELECT COUNT(*) AS held FROM items WHERE status = 'held'`);
+  if (view === 'briefing') {
+    const [held, b] = await Promise.all([heldQ.first(), buildBriefing(env, now, CATS)]);
+    const body = b
+      ? `<section class="panel brief"><h2>Daily Briefing</h2><p class="bst">${e(briefingStatus(env))}</p>
+<dl class="bmeta"><dt>Subject</dt><dd>${e(b.subject)}</dd><dt>Preview text</dt><dd>${e(b.preheader)}</dd><dt>Headlines</dt><dd>${b.count}, from the last 24 hours</dd></dl>
+<div class="bact"><button type="button" class="btn yes" id="btest">Send me a test</button><span id="bmsg" role="status"></span></div></section>
+<iframe class="bframe" id="bframe" title="Email preview" srcdoc="${e(b.html)}"></iframe>`
+      : `<section class="panel brief"><h2>Daily Briefing</h2><p class="none">Nothing has been published in the last 24 hours, so there's no briefing to show.</p></section>`;
+    const js = `(()=>{const f=document.getElementById('bframe');if(f)f.addEventListener('load',()=>{try{f.style.height=f.contentDocument.documentElement.scrollHeight+'px'}catch(e){}});const b=document.getElementById('btest'),m=document.getElementById('bmsg');if(!b)return;b.addEventListener('click',async()=>{b.disabled=true;m.textContent='Sending\u2026';try{const r=await fetch('/desk/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'briefing_test'})});const j=await r.json();m.textContent=j.ok?'Sent. Check your inbox.':(j.error||'Didn\u2019t send.')}catch(e){m.textContent='Didn\u2019t send. Try again.'}b.disabled=false})})();`;
+    return respond(page('CrimeHer Desk: Daily Briefing', deskHeader('stats', held) + `<main class="stats-main">${body}</main>`, js));
+  }
   if (view === 'stats') {
     const [held, main] = await Promise.all([heldQ.first(), renderStats(env, url, CATS, now)]);
     return respond(page('CrimeHer Desk: Stats', deskHeader('stats', held) + `<main class="stats-main">${main}</main>`));
@@ -343,8 +367,10 @@ async function renderStats(env, url, CATS, now) {
     ['Clicks', n0(t.clicks)],
     ['Headlines live', n0(live)],
     ['Clicks per headline', per ? per.toFixed(1) : '0'],
-    ['Email signups', n0(sg.total), sg.fresh ? `+${n0(sg.fresh)} in this period` : '']
-  ].map(([l, v, sub]) => `<div class="tile"><div class="tv">${v}</div><div class="tl">${l}${sub ? ` &middot; ${sub}` : ''}</div></div>`).join('');
+    ['Email signups', n0(sg.total), sg.fresh ? `+${n0(sg.fresh)} in this period` : '', '/desk?view=briefing']
+  ].map(([l, v, sub, href]) => href
+    ? `<a class="tile tlink" href="${href}"><div class="tv">${v}</div><div class="tl">${l}${sub ? ` &middot; ${sub}` : ''}</div><div class="tgo">Preview the Daily Briefing &rsaquo;</div></a>`
+    : `<div class="tile"><div class="tv">${v}</div><div class="tl">${l}${sub ? ` &middot; ${sub}` : ''}</div></div>`).join('');
   const short = Object.fromEntries(CATS.map(c => [c.key, c.short]));
   const topHtml = top.results.length
     ? `<ol class="rank">${top.results.map(r => `<li class="k-${e(r.category)}"><span class="h">${e(r.headline)}</span><span class="m"><i aria-hidden="true"></i><b>${n0(r.n)}</b> ${r.n === 1 ? 'click' : 'clicks'} &middot; ${e(short[r.category] || r.category)} &middot; ${e(r.outlet)}</span></li>`).join('')}</ol>`
@@ -446,6 +472,11 @@ export async function deskAction(req, env, user, CATS) {
   const who = 'desk: ' + user;
   const ms = Date.now();
   const out = o => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  if (b.action === 'briefing_test') {
+    const brief = await buildBriefing(env, ms, CATS);
+    if (!brief) return out({ ok: false, error: 'Nothing published in the last 24 hours.' });
+    return out(await sendTest(env, user, brief));
+  }
   // Top story controls.
   if (['pin', 'red', 'extend', 'unpin', 'pin_restore'].includes(b.action)) {
     let prev = null;
