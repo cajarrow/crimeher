@@ -5,7 +5,7 @@
 //    versions, then the one a reader would click first that is still fully accurate.
 // The rules mirror the "CrimeHer Editorial Rules" doc (approved Nov 5, 2026). Change both together.
 
-import { hostOf, isLastResort, plain, cleanUrl } from './feeds.js';
+import { hostOf, isLastResort, plain, cleanUrl, msnDetail } from './feeds.js';
 
 export const TRIAGE_MODEL = 'claude-haiku-5-5';
 export const WRITER_MODEL = 'claude-sonnet-5-5';
@@ -318,7 +318,10 @@ export async function fetchPage(url, ms = 6000) {
     return { html: (await res.text()).slice(0, 400000), url: final, err: null };
   } catch (err) { return { html: '', url, err: /timeout|abort/i.test(String(err)) ? 'timed out' : 'could not connect' }; }
 }
-async function fetchExcerpt(url) {
+async function fetchExcerpt(url, guid) {
+  // Stories that came through MSN: read MSN's copy, which outlets don't block.
+  const msn = String(guid || '').startsWith('msn:') ? await msnDetail(guid.slice(4)) : null;
+  if (msn && (msn.text || msn.abstract)) return { text: (msn.abstract + ' ' + msn.text).trim().slice(0, EXCERPT_CHARS), err: null, via: 'msn' };
   const p = await fetchPage(url);
   const text = p.html ? articleExcerpt(p.html) : '';
   return { text, err: p.err || (text ? null : 'no article text') };
@@ -349,7 +352,7 @@ export async function decideNew(env, now, maxItems, kv) {
   if (!liveSince) { liveSince = nowIso; await kv.set(env, 'live_since', liveSince); }
   const identityHold = now < Date.parse(liveSince) + IDENTITY_HOLD_DAYS * 86400000;
 
-  const pending = (await env.DB.prepare(`SELECT i.id, i.url, i.title_raw, i.summary_raw, i.category, i.outlet, i.source_published_at, s.name AS source_name, s.priority
+  const pending = (await env.DB.prepare(`SELECT i.id, i.url, i.guid, i.title_raw, i.summary_raw, i.category, i.outlet, i.source_published_at, s.name AS source_name, s.priority
     FROM items i LEFT JOIN sources s ON s.id = i.source_id WHERE i.status = 'new' ORDER BY i.source_published_at DESC LIMIT ?`).bind(maxItems).all()).results;
   if (!pending.length) return stats;
 
@@ -410,7 +413,7 @@ export async function decideNew(env, now, maxItems, kv) {
     // 2. Headlines, only for stories that made the cut.
     for (let w = 0; w < toWrite.length; w += WRITER_BATCH) {
       const group = toWrite.slice(w, w + WRITER_BATCH);
-      const excerpts = await Promise.all(group.map(g => fetchExcerpt(g.it.url)));
+      const excerpts = await Promise.all(group.map(g => fetchExcerpt(g.it.url, g.it.guid)));
       const writeText = 'STORIES:\n\n' + group.map((g, n) => `[${n}] Outlet: ${g.it.outlet || g.it.source_name}\nTitle: ${g.it.title_raw}\nSummary: ${g.it.summary_raw || '(none)'}\nArticle excerpt: ${excerpts[n].text || '(not available)'}\nCategory: ${g.category}${g.d.involves_minor ? '\nInvolves a minor: yes' : ''}`).join('\n\n');
       let written;
       try { written = (await callClaude(env, stats.writer, WRITER_PROMPT, WRITER_TOOL, writeText, stats.usage, stats.writer !== WRITER_MODEL)).headlines || []; }
@@ -443,7 +446,7 @@ export async function decideNew(env, now, maxItems, kv) {
         if (it.priority === 'last_resort' || isLastResort(host)) reasons.push('only source is a last-resort outlet');
         if (!(Number(h.confidence) >= CONFIDENCE_FLOOR)) reasons.push('low confidence');
         const flags = { ...tflags, names_minor: !!h.names_minor, identity_detail: !!h.identity_detail,
-          options: alts.filter(o => o !== headline).slice(0, 3), writer: stats.writer, excerpt: !!excerpts[n].text, excerpt_err: excerpts[n].err, copied: Math.round(copiedShare(it.title_raw, headline) * 100) / 100, swapped };
+          options: alts.filter(o => o !== headline).slice(0, 3), writer: stats.writer, excerpt: !!excerpts[n].text, excerpt_err: excerpts[n].err, excerpt_via: excerpts[n].via || null, copied: Math.round(copiedShare(it.title_raw, headline) * 100) / 100, swapped };
         let status = 'published';
         let note = null;
         if (reasons.length) status = 'held';

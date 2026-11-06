@@ -95,6 +95,50 @@ export function parseFeed(xml) {
   return out;
 }
 
+// --- MSN copies ---------------------------------------------------------------
+// Bing News often links to MSN's copy of a story instead of the outlet's own page. MSN's content
+// API names the original (sourceHref), so the headline can link to the outlet, and its text can
+// feed the headline writer when the outlet itself blocks us.
+export function msnId(url) {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)msn\.com$/i.test(u.hostname)) return null;
+    const m = u.pathname.match(/\/ar-([A-Za-z0-9]+)/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+export async function msnDetail(id) {
+  try {
+    const r = await fetch(`https://assets.msn.com/content/view/v2/Detail/en-us/${id}`, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const source = cleanUrl(d.sourceHref || '');
+    return {
+      url: source && !msnId(source) && !/(^|\.)msn\.com$/i.test(hostOf(source)) ? source : null,
+      abstract: plain(d.abstract || '', 500),
+      text: plain(typeof d.body === 'string' ? d.body : '', 4000)
+    };
+  } catch { return null; }
+}
+const MSN_PER_FEED = 15;
+async function resolveMsn(env, items) {
+  const found = items.map(it => [it, msnId(it.url)]).filter(([, id]) => id);
+  if (!found.length) return;
+  // Skip copies already stored (by their MSN id), so each is looked up once.
+  const ids = found.map(([, id]) => 'msn:' + id);
+  const seen = new Set((await env.DB.prepare(`SELECT guid FROM items WHERE guid IN (${ids.map(() => '?').join(',')})`).bind(...ids).all()).results.map(r => r.guid));
+  const todo = found.filter(([, id]) => !seen.has('msn:' + id));
+  for (const [it, id] of found) if (seen.has('msn:' + id)) it.skip = true;
+  await Promise.all(todo.slice(0, MSN_PER_FEED).map(async ([it, id]) => {
+    it.guid = 'msn:' + id;
+    const d = await msnDetail(id);
+    if (!d) return;
+    if (d.url) it.url = d.url;
+    if (!it.summary && d.abstract) it.summary = d.abstract;
+  }));
+  for (const [it] of todo.slice(MSN_PER_FEED)) it.skip = true; // picked up on the next check
+}
+
 // --- checking feeds -----------------------------------------------------------
 
 async function checkOne(env, src, now) {
@@ -118,11 +162,12 @@ async function checkOne(env, src, now) {
   const items = parseFeed(body);
   if (!items.length && !/<(rss|feed|rdf:RDF)[\s>]/i.test(body)) return fail(env, src, nowIso, 'not a feed');
 
+  await resolveMsn(env, items);
   const firstFetch = !src.last_ok_at;
   const freshCut = now - FRESH_HOURS * 3600000;
   const ins = env.DB.prepare(`INSERT OR IGNORE INTO items (source_id, url, guid, title_raw, summary_raw, category, status, outlet, source_published_at, fetched_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const stmts = items.map(it => {
+  const stmts = items.filter(it => !it.skip).map(it => {
     const when = it.published ? Date.parse(it.published) : null;
     let status = 'new';
     if (when ? when < freshCut : firstFetch) status = 'stale';

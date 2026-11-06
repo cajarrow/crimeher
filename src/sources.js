@@ -10,7 +10,7 @@
 //
 // Bump SOURCES_VERSION after editing this list, so the next run syncs it to the database.
 
-export const SOURCES_VERSION = '2026-11-05.1';
+export const SOURCES_VERSION = '2026-11-06.1';
 
 // Hostnames on the last-resort list. Matched against the article's own host.
 export const LAST_RESORT_HOSTS = ['huffpost.com', 'huffingtonpost.com', 'cnn.com', 'ms.now', 'msnbc.com'];
@@ -19,6 +19,8 @@ const B = 'breaking', M = 'missing', A = 'alerts', S = 'safety', C = 'courtroom'
 
 // Bing News search lanes: targeted queries, newest first. Links are decoded to the original article.
 const bing = q => `https://www.bing.com/news/search?q=${encodeURIComponent(q)}&qft=sortbydate%3d%221%22&format=rss&mkt=en-US`;
+// Some publishers block requests from cloud servers (their feeds answer 403) or keep empty crime feeds.
+// For those, a Bing News search limited to their own site (`site:`) returns their headlines and links instead.
 
 // [id, name, feed URL, category, options]
 const LIST = [
@@ -34,10 +36,9 @@ const LIST = [
   ['crimeonline', 'CrimeOnline', 'https://www.crimeonline.com/feed/', B],
   ['newser-crime', 'Newser: Crime', 'http://rss.newser.com/rss/section/13.rss', B],
   ['truecrimenews', 'TrueCrimeNews', 'https://feeds.truecrimenews.com/rss/', B],
-  ['crimewatchdaily', 'TrueCrimeNews (old Feedly address)', 'https://feeds.crimewatchdaily.com/rss', B],
-  ['nydailynews-crime', 'New York Daily News: Crime', 'https://www.nydailynews.com/news/crime-public-safety/feed/', B],
+  ['nydailynews-crime', 'New York Daily News: Crime', bing('site:nydailynews.com police'), B],
   ['independent-crime', 'The Independent: US Crime', 'https://www.independent.co.uk/news/world/americas/crime/rss', B],
-  ['people-crime', 'People: Crime', 'https://people.com/crime/feed/', B],
+  ['people-crime', 'People: Crime', bing('site:people.com crime'), B],
   ['usmagazine-crime', 'Us Weekly: Crime', 'https://www.usmagazine.com/category/celebrity-news/crime/feed/', B],
   ['radar-truecrime', 'Radar Online: True Crime', 'https://radaronline.com/true-crime/rss/', B],
   ['guardian-ukcrime', 'The Guardian: UK Crime', 'https://www.theguardian.com/uk/ukcrime/rss', B],
@@ -46,7 +47,7 @@ const LIST = [
 
   // Local TV and newspaper crime desks
   ['fox5ny-crime', 'FOX 5 New York: Crime', 'https://www.fox5ny.com/rss.xml?tag=crime-publicsafety', B],
-  ['fox5atl-crime', 'FOX 5 Atlanta: Crime', 'https://www.fox5atlanta.com/rss.xml?tag=crime', B],
+  ['fox5atl-crime', 'FOX 5 Atlanta: Crime', bing('site:fox5atlanta.com crime'), B],
   ['fox32-crime', 'FOX 32 Chicago: Crime', 'https://www.fox32chicago.com/rss.xml?tag=crime-publicsafety', B],
   ['foxla-crime', 'FOX 11 Los Angeles: Crime', 'https://www.foxla.com/rss.xml?tag=crime-publicsafety', B],
   ['fox13-crime', 'FOX 13 Tampa Bay: Crime', 'https://www.fox13news.com/rss.xml?tag=crime-publicsafety', B],
@@ -55,19 +56,19 @@ const LIST = [
   ['fox35-crime', 'FOX 35 Orlando: Crime', 'https://www.fox35orlando.com/rss.xml?tag=crime-publicsafety', B],
   ['fox10-crime', 'FOX 10 Phoenix: Crime', 'https://www.fox10phoenix.com/rss.xml?tag=crime-publicsafety', B],
   ['cbsny-crime', 'CBS New York: Crime', 'https://www.cbsnews.com/newyork/latest/rss/crime', B],
-  ['nbcct-crime', 'NBC Connecticut: Crime & Courts', 'https://www.nbcconnecticut.com/tag/crime-and-courts/feed/', B],
-  ['nbcphilly-crime', 'NBC10 Philadelphia: Crime & Courts', 'https://www.nbcphiladelphia.com/tag/crime-and-courts/feed/', B],
-  ['kfor-crime', 'KFOR Oklahoma City: Crime', 'https://kfor.com/news/crime/feed/', B],
-  ['ktla-crime', 'KTLA Los Angeles: Crime', 'https://ktla.com/news/crime/feed/', B],
+  ['nbcct-crime', 'NBC Connecticut: Crime & Courts', bing('site:nbcconnecticut.com police'), B],
+  ['nbcphilly-crime', 'NBC10 Philadelphia: Crime & Courts', bing('site:nbcphiladelphia.com police'), B],
+  ['kfor-crime', 'KFOR Oklahoma City: Crime', bing('site:kfor.com police'), B],
+  ['ktla-crime', 'KTLA Los Angeles: Crime', bing('site:ktla.com police'), B],
   ['pix11-crime', 'PIX11 New York: Crime', 'https://pix11.com/news/crime/feed/', B],
-  ['wgn-crime', 'WGN Chicago: Crime', 'https://wgntv.com/news/crime/feed/', B],
+  ['wgn-crime', 'WGN Chicago: Crime', bing('site:wgntv.com police'), B],
   ['kseecrime', 'Your Central Valley: Crime', 'https://www.yourcentralvalley.com/news/crime/feed/', B],
-  ['baltsun-crime', 'Baltimore Sun: Crime', 'https://www.baltimoresun.com/news/crime-public-safety/feed/', B],
-  ['pilot-crime', 'The Virginian-Pilot: Crime', 'https://www.pilotonline.com/news/crime-public-safety/feed/', B],
-  ['orlsent-crime', 'Orlando Sentinel: Crime', 'https://www.orlandosentinel.com/news/crime-public-safety/feed/', B],
-  ['sunsent-crime', 'South Florida Sun Sentinel: Crime', 'https://www.sun-sentinel.com/news/crime-public-safety/feed/', B],
-  ['denverpost-crime', 'Denver Post: Crime & Courts', 'https://www.denverpost.com/news/crime-courts/feed/', B],
-  ['sbsun-crime', 'San Bernardino Sun: Crime', 'https://www.sbsun.com/news/crime-public-safety/feed/', B],
+  ['baltsun-crime', 'Baltimore Sun: Crime', bing('site:baltimoresun.com police'), B],
+  ['pilot-crime', 'The Virginian-Pilot: Crime', bing('site:pilotonline.com police'), B],
+  ['orlsent-crime', 'Orlando Sentinel: Crime', bing('site:orlandosentinel.com police'), B],
+  ['sunsent-crime', 'South Florida Sun Sentinel: Crime', bing('site:sun-sentinel.com police'), B],
+  ['denverpost-crime', 'Denver Post: Crime & Courts', bing('site:denverpost.com police'), B],
+  ['sbsun-crime', 'San Bernardino Sun: Crime', bing('site:sbsun.com police'), B],
   ['mynewsla', 'MyNewsLA: Crime', 'https://mynewsla.com/category/crime/feed/', B],
 
   // Courtroom
@@ -106,11 +107,9 @@ const LIST = [
   ['bing-stalking', 'News search: stalking charges', bing('stalking charged woman'), S],
 
   // Cold Cases
-  ['defrosting', 'Defrosting Cold Cases', 'https://defrostingcoldcases.com/feed/', K],
+  ['defrosting', 'Defrosting Cold Cases', bing('site:defrostingcoldcases.com'), K],
   ['projectcoldcase', 'Project Cold Case', 'https://projectcoldcase.org/feed/', K],
-  ['coldcaseinitiative', 'Cold Case Initiative', 'https://www.coldcaseinitiative.org/in-the-news?format=rss', K],
-  ['fcpd-coldcase', 'Fairfax County Police: Cold Cases', 'https://fcpdnews.wordpress.com/category/cold-case/feed/', K],
-  ['kosu-coldcase', 'KOSU: Cold Cases', 'https://www.kosu.org/tags/cold-cases.rss', K],
+  ['kosu-coldcase', 'KOSU: Cold Cases', bing('site:kosu.org cold case'), K],
   ['bing-coldcase', 'News search: cold-case arrests', bing('cold case arrest'), K],
   ['bing-genealogy', 'News search: DNA genealogy IDs', bing('genetic genealogy identified decades'), K],
 
@@ -118,7 +117,6 @@ const LIST = [
   ['oxygen', 'Oxygen: Crime News', 'https://www.oxygen.com/feeds/crime-news', T],
   ['crimereads', 'CrimeReads', 'https://crimereads.com/feed/', T],
   ['unilad-truecrime', 'UNILAD: True Crime', 'https://www.unilad.com/true-crime.rss', T],
-  ['uncovered', 'Uncovered', 'https://uncovered.com/feed', T],
   ['morbidology', 'Morbidology', 'https://morbidology.com/feed/', T],
   ['cbs-48hours', 'CBS News: 48 Hours', 'https://www.cbsnews.com/latest/rss/48-hours', T],
 

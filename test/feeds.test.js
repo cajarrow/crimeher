@@ -67,3 +67,10 @@ test('a blurb repeated across a feed is dropped', () => {
   const items = parseFeed(`<rss><channel>${[1, 2, 3].map(item).join('')}<item><title>Story 4</title><link>https://e.com/4</link><description>Its own blurb.</description></item></channel></rss>`);
   assert.deepEqual(items.map(i => i.summary), ['', '', '', 'Its own blurb.']);
 });
+
+test('MSN copies are recognized by their article id', async () => {
+  const { msnId } = await import('../src/feeds.js');
+  assert.equal(msnId('https://www.msn.com/en-us/news/crime/some-story/ar-AA2gHRMs'), 'AA2gHRMs');
+  assert.equal(msnId('https://www.msn.com/en-gb/news/news/x/ar-AA2gQ1XV?ocid=abc'), 'AA2gQ1XV');
+  assert.equal(msnId('https://www.miamiherald.com/living/article317907070.html'), null);
+});
