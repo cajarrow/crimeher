@@ -74,7 +74,6 @@ const LIST = [
   // Courtroom
   ['courttv', 'Court TV', 'https://www.courttv.com/feed/', C],
   ['lawandcrime', 'Law&Crime', 'https://lawandcrime.com/feed/', C],
-  ['courttv', 'Court TV', 'https://www.courttv.com/feed/', C],
   ['courthousenews', 'Courthouse News', 'https://www.courthousenews.com/feed/', C, { broad: true }],
   ['doj-press', 'U.S. Justice Department: Press Releases', 'https://www.justice.gov/news/rss?type=press_release&m=1', C],
   ['bing-verdict', 'News search: murder verdicts', bing('jury verdict murder trial'), C],
@@ -116,8 +115,6 @@ const LIST = [
   ['bing-genealogy', 'News search: DNA genealogy IDs', bing('genetic genealogy identified decades'), K],
 
   // True Crime
-  ['oxygen', 'Oxygen: Crime News', 'https://www.oxygen.com/feeds/crime-news', T],
-  ['crimeonline', 'CrimeOnline', 'https://www.crimeonline.com/feed/', T],
   ['oxygen', 'Oxygen: Crime News', 'https://www.oxygen.com/feeds/crime-news', T],
   ['crimereads', 'CrimeReads', 'https://crimereads.com/feed/', T],
   ['unilad-truecrime', 'UNILAD: True Crime', 'https://www.unilad.com/true-crime.rss', T],
