@@ -20,6 +20,10 @@ const SAME_STORY = 0.6;          // title-word overlap that marks a repeat befor
 // Safety valve under Craig's $25/month Claude limit: past this estimated spend in a UTC day, the
 // cheaper model writes the headlines for the rest of the day, so the board never stops.
 const DAILY_BUDGET_USD = 0.75;
+// Batch the AI calls: wait for 10 new stories or 8 minutes, whichever comes first. Each call
+// re-sends the instructions, so many tiny calls (overnight) cost far more per headline.
+const MIN_BATCH = 10;
+const MAX_WAIT_MIN = 8;
 
 // Approximate list prices per million tokens, for the run log's cost estimate only.
 const PRICE = { [TRIAGE_MODEL]: [0.10, 0.50], [WRITER_MODEL]: [2.00, 10.00] };
@@ -250,6 +254,9 @@ export async function decideNew(env, now, maxItems, kv) {
   const stats = { decided: 0, published: 0, held: 0, rejected: 0, errors: 0, usage: {}, writer: WRITER_MODEL };
   if (!env.ANTHROPIC_API_KEY) return stats;
   const nowIso = new Date(now).toISOString();
+  const queue = await env.DB.prepare(`SELECT COUNT(*) AS n, MIN(fetched_at) AS oldest FROM items WHERE status = 'new'`).first();
+  if (!queue || !queue.n) return stats;
+  if (queue.n < MIN_BATCH && Date.parse(queue.oldest) > now - MAX_WAIT_MIN * 60000) return stats;
   const dayStart = nowIso.slice(0, 10) + 'T00:00:00.000Z';
   const spent = (await env.DB.prepare(`SELECT COALESCE(SUM(json_extract(notes, '$.est_cost_usd')), 0) AS usd FROM runs WHERE started_at >= ?`).bind(dayStart).first()).usd || 0;
   if (spent >= DAILY_BUDGET_USD) stats.writer = TRIAGE_MODEL;
