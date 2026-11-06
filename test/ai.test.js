@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanHeadline, sigWords, overlap, estimateCost, TRIAGE_MODEL, WRITER_MODEL, articleExcerpt, copiedShare } from '../src/ai.js';
+import { pageMeta, slugTitle } from '../src/ai.js';
 
 test('a leading quote survives; wrapping quotes go', () => {
   assert.equal(cleanHeadline("'Started on Valentine's Day': Ex-Deputy Accused"), "'Started on Valentine's Day': Ex-Deputy Accused");
@@ -43,4 +44,23 @@ test('copied share flags near-copies of the outlet headline', () => {
   assert.ok(copiedShare(t, "Vince Neil's Girlfriend Arrested in Tennessee After Alleged Domestic Fight") >= 0.5);
   assert.ok(copiedShare(t, "Vince Neil's Girlfriend Arrested on Domestic Assault Charge in Tennessee") >= 0.75);
   assert.ok(copiedShare(t, "Mötley Crüe Singer's Girlfriend Arrested After Alleged Argument, Property Damage") <= 0.55);
+});
+
+test('page meta: og tags in either order, apostrophes kept, site name dropped', () => {
+  const html = `<title>Teen held | WRAL.com</title><meta content="She's gone, cops say" property="og:description">
+    <meta property="og:title" content="Teen Held in School Plot | WRAL.com"><meta property="article:published_time" content="2026-11-06T08:00:00Z">`;
+  const m = pageMeta(html);
+  assert.equal(m.title, 'Teen Held in School Plot');
+  assert.equal(m.description, "She's gone, cops say");
+  assert.equal(m.published, '2026-11-06T08:00:00.000Z');
+});
+
+test('a blocked page still gives the AI words from its link', () => {
+  assert.equal(slugTitle('https://www.wral.com/story/teen-accused-of-plotting-school-attack/21712345/'), 'teen accused of plotting school attack');
+  assert.equal(slugTitle('https://x.com/a/12345'), '');
+});
+
+test('hour-long cache writes are priced at 2x', () => {
+  const u = { [WRITER_MODEL]: { in: 0, out: 0, cache_read: 0, cache_write: 1000000, cache_write_1h: 1000000 } };
+  assert.equal(estimateCost(u), 4);
 });

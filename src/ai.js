@@ -26,7 +26,8 @@ const MIN_BATCH = 10;
 const MAX_WAIT_MIN = 8;
 
 // Approximate list prices per million tokens, for the run log's cost estimate only.
-const PRICE = { [TRIAGE_MODEL]: [0.10, 0.50], [WRITER_MODEL]: [2.00, 10.00] };
+// Third value: cache-read price as a share of input (0.05 for Sonnet 5.5, 0.1 for Haiku 5.5, per the prompt-caching docs).
+const PRICE = { [TRIAGE_MODEL]: [0.10, 0.50, 0.1], [WRITER_MODEL]: [2.00, 10.00, 0.05] };
 
 const CATEGORY_GUIDE = `
 - breaking: Breaking Crime News. New arrests, shootings, killings, manhunts and major crime stories.
@@ -187,28 +188,40 @@ const WRITER_TOOL = {
   }
 };
 
+// The instructions are cached for an hour, not the default 5 minutes: the AI runs every ~8 minutes,
+// so a 5-minute cache was rewritten on almost every call (most of the cost). If the API ever
+// refuses the hour-long cache, fall back to the default for the life of this Worker.
+let LONG_CACHE = true;
 async function callClaude(env, model, system, tool, userText, usage, forceTool = true) {
-  const res = await fetch((env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com') + '/v1/messages', {
+  const send = () => fetch((env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com') + '/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model,
       max_tokens: 8000,
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: system, cache_control: LONG_CACHE ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' } }],
       tools: [tool],
       tool_choice: forceTool ? { type: 'tool', name: tool.name } : { type: 'auto' },
       messages: [{ role: 'user', content: userText }]
     }),
     signal: AbortSignal.timeout(120000)
   });
+  let res = await send();
+  if (res.status === 400 && LONG_CACHE) {
+    const body = await res.text();
+    if (!/ttl|cache_control/i.test(body)) throw new Error(`Claude API 400 (${model}): ${body.slice(0, 300)}`);
+    LONG_CACHE = false;
+    res = await send();
+  }
   if (!res.ok) throw new Error(`Claude API ${res.status} (${model}): ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
   const u = data.usage || {};
-  const t = usage[model] || (usage[model] = { in: 0, out: 0, cache_read: 0, cache_write: 0 });
+  const t = usage[model] || (usage[model] = { in: 0, out: 0, cache_read: 0, cache_write: 0, cache_write_1h: 0 });
   t.in += u.input_tokens || 0;
   t.out += u.output_tokens || 0;
   t.cache_read += u.cache_read_input_tokens || 0;
   t.cache_write += u.cache_creation_input_tokens || 0;
+  t.cache_write_1h = (t.cache_write_1h || 0) + ((u.cache_creation && u.cache_creation.ephemeral_1h_input_tokens) || 0);
   const block = (data.content || []).find(b => b.type === 'tool_use');
   if (block && block.input) return block.input;
   const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
@@ -220,8 +233,10 @@ async function callClaude(env, model, system, tool, userText, usage, forceTool =
 export function estimateCost(usage) {
   let usd = 0;
   for (const [model, t] of Object.entries(usage)) {
-    const [pin, pout] = PRICE[model] || [0, 0];
-    usd += (t.in * pin + t.cache_read * pin * 0.1 + t.cache_write * pin * 1.25 + t.out * pout) / 1e6;
+    const [pin, pout, pread] = PRICE[model] || [0, 0, 0.1];
+    // Cache writes cost 1.25x for the 5-minute cache, 2x for the hour-long one.
+    const w1h = t.cache_write_1h || 0;
+    usd += (t.in * pin + t.cache_read * pin * pread + (t.cache_write - w1h) * pin * 1.25 + w1h * pin * 2 + t.out * pout) / 1e6;
   }
   return Math.round(usd * 10000) / 10000;
 }
