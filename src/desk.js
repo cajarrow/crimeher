@@ -5,7 +5,7 @@
 import { KCSS } from './theme.js';
 import { addByUrl } from './ai.js';
 import { FAVICON_SVG } from './icons.js';
-import { PIN_HOURS, currentTop, chooseAutoTop, pinTop, extendTop, unpinTop, restorePin, timeLeft } from './top.js';
+import { PIN_HOURS, currentTop, chooseAutoTop, pinTop, extendTop, unpinTop, restorePin, setRed, timeLeft } from './top.js';
 
 const CERTS = { team: '', at: 0, keys: [] };
 
@@ -94,7 +94,7 @@ a{color:inherit}
 main{max-width:1200px;margin:0 auto;padding:12px 12px 40px}
 #list{display:grid;gap:12px;grid-template-columns:1fr;align-items:start}
 @media (min-width:760px){main{padding:20px 16px 48px}#list{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}}
-.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:opacity .25s,transform .25s}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:opacity .25s,transform .25s;scroll-margin-top:124px}
 .card.gone{opacity:0;transform:translateX(24px)}
 .why{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--red)}
 .why span{background:var(--redt);border-radius:8px;padding:4px 9px}
@@ -152,6 +152,16 @@ button{font:inherit;cursor:pointer}
 .tb-l{flex:1}
 .tb{height:34px;padding:0 12px;border-radius:9px;border:1.5px solid var(--line);background:#fff;color:var(--ink);font-size:13px;font-weight:700}
 .topbar.on .tb{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
+.topbar.on.red{background:var(--red)}
+.topbar.on .tb-red[aria-pressed=true]{background:#fff;color:var(--red);border-color:#fff}
+.card.is-red{border-color:var(--red)}
+.is-red .hl{color:var(--red)}
+.redsw{flex-basis:100%;display:flex;align-items:center;gap:10px;min-height:44px;margin:2px 0 4px;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer}
+.redsw input{appearance:none;-webkit-appearance:none;position:relative;flex:none;width:44px;height:26px;margin:0;border-radius:13px;background:#D9D6D0;transition:background .2s;cursor:pointer}
+.redsw input::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s}
+.redsw input:checked{background:var(--red)}
+.redsw input:checked::after{transform:translateX(18px)}
+.redsw small{font-weight:600;color:var(--muted)}
 .more{display:flex;justify-content:center;margin-top:-4px}
 .ghost{min-height:40px;padding:0 10px;background:none;border:0;font-size:14px;font-weight:700;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 .ghost:hover{color:var(--ink)}
@@ -262,7 +272,7 @@ const LIVE_COLS = `id, url, headline, category, outlet, title_raw, NULL AS hold_
   (SELECT COUNT(*) FROM clicks c WHERE c.item_id = items.id) AS clicks`;
 function topbarHtml(top, now) {
   return top.mode === 'pinned'
-    ? `<div class="topbar on"><span class="tb-l">&#9733; Top story &middot; ${timeLeft(top.until, now)}</span><button type="button" class="tb" data-act="extend">+2h</button><button type="button" class="tb" data-act="unpin">Unpin</button></div>`
+    ? `<div class="topbar on${top.red ? ' red' : ''}"><span class="tb-l">&#9733; Top story &middot; ${timeLeft(top.until, now)}</span><button type="button" class="tb tb-red" data-act="red" aria-pressed="${top.red ? 'true' : 'false'}" title="Red headline on the site">Red</button><button type="button" class="tb" data-act="extend">+2h</button><button type="button" class="tb" data-act="unpin">Unpin</button></div>`
     : `<div class="topbar"><span class="tb-l">Top story now &middot; automatic</span><button type="button" class="tb" data-act="pinmenu">Pin it</button></div>`;
 }
 function cardHtml(r, view, CATS, now, top) {
@@ -284,7 +294,7 @@ function cardHtml(r, view, CATS, now, top) {
   const acts = view === 'held'
     ? `<div class="acts"><button type="button" class="btn no" data-act="reject">Reject</button><button type="button" class="btn yes" data-act="publish">Publish</button></div><div class="more"><button type="button" class="ghost" data-act="pinmenu">Publish as top story</button></div>`
     : `<div class="acts"><button type="button" class="btn no tops" data-act="pinmenu">&#9733; Top story</button><button type="button" class="btn no pull" data-act="pull">Pull</button><button type="button" class="btn yes" data-act="save">Save</button></div>`;
-  return `<article class="card${view === 'live' ? ' is-live' : ''}${isTop ? ' is-top' : ''}" data-id="${r.id}">${isTop ? topbarHtml(top, now) : ''}${why}
+  return `<article class="card${view === 'live' ? ' is-live' : ''}${isTop ? ' is-top' : ''}${isTop && top.red ? ' is-red' : ''}" data-id="${r.id}">${isTop ? topbarHtml(top, now) : ''}${why}
 <div class="meta"><select class="cat k-${e(r.category)}" aria-label="Category">${opts}</select><span>${facts.filter(Boolean).join(' &middot; ')}</span></div>
 <textarea class="hl" rows="2" aria-label="Headline">${e(head)}</textarea><div class="over"${head.length > LIMIT ? '' : ' hidden'}>${head.length}/${LIMIT} &middot; too long</div>${altHtml}
 <div class="src"><span class="lbl">Original</span>${e(r.title_raw)} <a href="${e(r.url)}" target="_blank" rel="noopener">Read&nbsp;article&nbsp;&#8599;</a></div>${acts}</article>`;
@@ -366,8 +376,8 @@ function toast(msg,fn){M.textContent=msg;undoFn=fn||null;U.style.display=fn?'':'
 function count(d){if(!N)return;const n=Math.max(0,(+N.textContent||0)+d);N.textContent=n;N.classList.toggle('zero',!n)}
 function measure(ta){const card=ta.closest('.card'),o=card.querySelector('.over'),n=ta.value.trim().length;o.hidden=n<=MAX;o.textContent=n+'/'+MAX+' · too long'}
 function hrs(h){return h+' hours'}
-function placeTop(top){L.querySelectorAll('.topbar').forEach(x=>x.remove());L.querySelectorAll('.card.is-top').forEach(c=>c.classList.remove('is-top'));if(!top)return;const c=L.querySelector('.card[data-id="'+top.id+'"]');if(!c){location.reload();return}const t=document.createElement('div');t.innerHTML=top.html;c.prepend(t.firstElementChild);c.classList.add('is-top');L.prepend(c);c.scrollIntoView({behavior:'smooth',block:'nearest'})}
-function menu(card,btn){const open=card.querySelector('.pinrow');L.querySelectorAll('.pinrow').forEach(r=>r.remove());if(open)return;const r=document.createElement('div');r.className='pinrow';r.innerHTML='<span>'+(V==='held'?'Publish as top story for':'Keep it on top for')+'</span><button type="button" data-pin="2">2h</button><button type="button" data-pin="6" class="def">6h</button><button type="button" data-pin="12">12h</button><button type="button" data-pin="0" class="x">Cancel</button>';btn.closest('.acts,.topbar,.more').after(r)}
+function placeTop(top){L.querySelectorAll('.topbar').forEach(x=>x.remove());L.querySelectorAll('.card.is-top').forEach(c=>c.classList.remove('is-top','is-red'));if(!top)return;const c=L.querySelector('.card[data-id="'+top.id+'"]');if(!c){location.reload();return}const t=document.createElement('div');t.innerHTML=top.html;c.prepend(t.firstElementChild);c.classList.add('is-top');c.classList.toggle('is-red',!!top.red);L.prepend(c);c.scrollIntoView({behavior:'smooth',block:'nearest'})}
+function menu(card,btn){const open=card.querySelector('.pinrow');L.querySelectorAll('.pinrow').forEach(r=>r.remove());if(open)return;const r=document.createElement('div');r.className='pinrow';r.innerHTML='<span>'+(V==='held'?'Publish as top story for':'Keep it on top for')+'</span><label class="redsw"><input type="checkbox" class="redin"> Red headline <small>for dramatic news</small></label><button type="button" data-pin="2">2h</button><button type="button" data-pin="6" class="def">6h</button><button type="button" data-pin="12">12h</button><button type="button" data-pin="0" class="x">Cancel</button>';btn.closest('.acts,.topbar,.more').after(r)}
 function removeCard(card,msg){card.classList.add('gone');setTimeout(()=>{card.hidden=true},260);if(V==='held')count(-1);
 toast(msg,async()=>{await post({id:+card.dataset.id,action:'restore',to:V});card.hidden=false;requestAnimationFrame(()=>card.classList.remove('gone'));card.querySelectorAll('button').forEach(b=>b.disabled=false);if(V==='held')count(1)})}
 function fields(card){return{headline:card.querySelector('.hl').value.trim(),category:card.querySelector('.cat').value}}
@@ -375,14 +385,15 @@ L.addEventListener('input',ev=>{const t=ev.target;if(!t.classList.contains('hl')
 L.addEventListener('change',ev=>{const t=ev.target;if(!t.classList.contains('cat'))return;t.className='cat k-'+t.value;t.closest('.card').classList.add('dirty')});
 L.addEventListener('click',async ev=>{const alt=ev.target.closest('.alt');if(alt){const card=alt.closest('.card'),ta=card.querySelector('.hl'),cur=ta.value;ta.value=alt.dataset.alt;alt.dataset.alt=cur;alt.textContent=cur;alt.classList.remove('swapped');void alt.offsetWidth;alt.classList.add('swapped');measure(ta);card.classList.add('dirty');return}
 const pb=ev.target.closest('button[data-pin]');
-if(pb){const card=pb.closest('.card'),row=pb.closest('.pinrow'),h=+pb.dataset.pin;if(!h){row.remove();return}const btns=card.querySelectorAll('button');btns.forEach(x=>x.disabled=true);
-try{if(V==='held'){await post(Object.assign({id:+card.dataset.id,action:'publish',pin:h},fields(card)));row.remove();removeCard(card,'Published as top story for '+hrs(h))}
-else{const j=await post({id:+card.dataset.id,action:'pin',hours:h});row.remove();btns.forEach(x=>x.disabled=false);placeTop(j.top);toast('Top story for '+hrs(h),async()=>{const k=await post({action:'pin_restore',prev:j.prev});placeTop(k.top)})}}
+if(pb){const card=pb.closest('.card'),row=pb.closest('.pinrow'),h=+pb.dataset.pin;if(!h){row.remove();return}const red=!!row.querySelector('.redin:checked'),what=(red?'red top story':'top story')+' for '+hrs(h);const btns=card.querySelectorAll('button');btns.forEach(x=>x.disabled=true);
+try{if(V==='held'){await post(Object.assign({id:+card.dataset.id,action:'publish',pin:h,red},fields(card)));row.remove();removeCard(card,'Published as '+what)}
+else{const j=await post({id:+card.dataset.id,action:'pin',hours:h,red});row.remove();btns.forEach(x=>x.disabled=false);placeTop(j.top);toast('Now the '+what,async()=>{const k=await post({action:'pin_restore',prev:j.prev});placeTop(k.top)})}}
 catch(err){btns.forEach(x=>x.disabled=false);toast('Didn\'t save. Try again.')}return}
 const b=ev.target.closest('button[data-act]');if(!b)return;const card=b.closest('.card'),act=b.dataset.act;
 if(act==='pinmenu'){menu(card,b);return}
 const btns=card.querySelectorAll('button');btns.forEach(x=>x.disabled=true);
-try{if(act==='extend'||act==='unpin'){const j=await post({action:act});btns.forEach(x=>x.disabled=false);placeTop(j.top);toast(act==='extend'?'Extended 2 hours':'Top story is back to automatic');return}
+try{if(act==='red'){const on=b.getAttribute('aria-pressed')!=='true',j=await post({action:'red',on});btns.forEach(x=>x.disabled=false);placeTop(j.top);toast(on?'Headline is red on the site':'Headline is back to black');return}
+if(act==='extend'||act==='unpin'){const j=await post({action:act});btns.forEach(x=>x.disabled=false);placeTop(j.top);toast(act==='extend'?'Extended 2 hours':'Top story is back to automatic');return}
 await post(Object.assign({id:+card.dataset.id,action:act},fields(card)));
 if(act==='save'){toast(label.save);card.classList.remove('dirty');btns.forEach(x=>x.disabled=false);return}
 removeCard(card,label[act])}
@@ -434,24 +445,26 @@ export async function deskAction(req, env, user, CATS) {
   const ms = Date.now();
   const out = o => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   // Top story controls.
-  if (['pin', 'extend', 'unpin', 'pin_restore'].includes(b.action)) {
+  if (['pin', 'red', 'extend', 'unpin', 'pin_restore'].includes(b.action)) {
     let prev = null;
     if (b.action === 'pin') {
       const hours = Number(b.hours);
       if (!PIN_HOURS.includes(hours)) return new Response('Pick 2, 6 or 12 hours', { status: 400 });
       if (!await env.DB.prepare(`SELECT 1 FROM items WHERE id = ? AND status = 'published'`).bind(id).first()) return new Response('Not live', { status: 409 });
-      prev = await pinTop(env, id, hours, ms);
+      prev = await pinTop(env, id, hours, ms, !!b.red);
+    } else if (b.action === 'red') {
+      if (!await setRed(env, !!b.on, ms)) return new Response('Nothing is pinned', { status: 409 });
     } else if (b.action === 'extend') {
       if (!await extendTop(env, 2, ms)) return new Response('Nothing is pinned', { status: 409 });
     } else if (b.action === 'unpin') {
       await unpinTop(env);
       await chooseAutoTop(env, ms);
     } else {
-      const p = b.prev && typeof b.prev === 'object' && Number.isInteger(Number(b.prev.id)) && Number.isFinite(Date.parse(b.prev.until)) ? { id: Number(b.prev.id), until: b.prev.until, at: b.prev.at } : null;
+      const p = b.prev && typeof b.prev === 'object' && Number.isInteger(Number(b.prev.id)) && Number.isFinite(Date.parse(b.prev.until)) ? { id: Number(b.prev.id), until: b.prev.until, red: !!b.prev.red, at: b.prev.at } : null;
       await restorePin(env, p);
     }
     const top = await currentTop(env, ms);
-    return out({ ok: true, prev, top: top ? { id: top.id, html: topbarHtml(top, ms) } : null });
+    return out({ ok: true, prev, top: top ? { id: top.id, red: !!top.red, html: topbarHtml(top, ms) } : null });
   }
   let stmt;
   if (b.action === 'publish') {
@@ -471,7 +484,7 @@ export async function deskAction(req, env, user, CATS) {
   } else return new Response('Unknown action', { status: 400 });
   const r = await stmt.run();
   if (!r.meta.changes) return new Response('Already changed', { status: 409 });
-  if (b.action === 'publish' && PIN_HOURS.includes(Number(b.pin))) await pinTop(env, id, Number(b.pin), ms);
+  if (b.action === 'publish' && PIN_HOURS.includes(Number(b.pin))) await pinTop(env, id, Number(b.pin), ms, !!b.red);
   if (b.action === 'pull' || (b.action === 'restore' && b.to !== 'live')) await unpinTop(env, id);
   return new Response(JSON.stringify({ ok: true }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 }

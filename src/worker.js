@@ -56,7 +56,7 @@ a{color:inherit;text-decoration:none}
 .kick{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--red)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:4px;background:var(--red);flex:none}
 .top h2{margin:10px 0 0;font-family:Newsreader,Georgia,serif;font-weight:700;font-size:29px;line-height:1.14;letter-spacing:-.3px}
-.top h2 a:hover,.list a:hover .h,.cat li a:hover{color:var(--red)}
+.top h2 a:hover,.list a:hover .h,.cat li a:hover{color:var(--red)}.top.red h2 a{color:var(--red)}.top.red h2 a:hover{color:#8C1D17}
 .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted)}
 .top .meta{margin-top:10px}
 .meta .c{font-weight:700;letter-spacing:.8px;text-transform:uppercase}
@@ -190,13 +190,14 @@ async function renderPage(env, cat, preview) {
   const now = Date.now();
   const cols = 'id, headline, category, published_at';
   let top = null;
+  let pick = null;
   let feed = [];
   let sections = [];
   if (cat) {
     feed = (await env.DB.prepare(`SELECT ${cols} FROM items WHERE status = 'published' AND category = ? ORDER BY published_at DESC LIMIT 50`).bind(cat.key).all()).results;
   } else {
     // Top story: Craig's pin, else the automatic pick (src/top.js), else the newest Breaking headline.
-    const pick = await currentTop(env, now);
+    pick = await currentTop(env, now);
     const res = await env.DB.batch([
       pick ? env.DB.prepare(`SELECT ${cols} FROM items WHERE id = ? AND status = 'published'`).bind(pick.id)
         : env.DB.prepare(`SELECT ${cols} FROM items WHERE status = 'published' AND category = 'breaking' ORDER BY published_at DESC LIMIT 1`),
@@ -211,7 +212,7 @@ async function renderPage(env, cat, preview) {
   const rest = feed.slice(6).map(r => itemHtml(r, now, !cat)).join('');
   const empty = feed.length ? '' : '<p class="empty">Headlines are loading. Check back in a few minutes.</p>';
   const topCat = top && BY_KEY[top.category] ? BY_KEY[top.category].short : '';
-  const topHtml = top ? `<section class="top" aria-label="Top story"><div class="kick"><span class="dot"></span><span>Top story</span></div><h2><a href="/go/${top.id}" target="_blank" rel="noopener">${e(top.headline)}</a></h2><div class="meta"><span class="c${top && BY_KEY[top.category] ? ' k-' + top.category : ''}">${e(topCat)}</span><span aria-hidden="true">&middot;</span><span>${ago(top.published_at, now)}</span></div></section>` : '';
+  const topHtml = top ? `<section class="top${pick && pick.red && pick.id === top.id ? ' red' : ''}" aria-label="Top story"><div class="kick"><span class="dot"></span><span>Top story</span></div><h2><a href="/go/${top.id}" target="_blank" rel="noopener">${e(top.headline)}</a></h2><div class="meta"><span class="c${top && BY_KEY[top.category] ? ' k-' + top.category : ''}">${e(topCat)}</span><span aria-hidden="true">&middot;</span><span>${ago(top.published_at, now)}</span></div></section>` : '';
   const catHead = cat ? `<section class="cat-head k-${cat.key}"><h1>${e(cat.full)}</h1><p>${e(cat.desc)}</p></section>` : '<h1 class="sr">CrimeHer: Your Daily True Crime Briefing</h1>';
   const aside = cat ? '' : `<aside class="cats" aria-label="Categories">${sections.map(s => `<section class="cat k-${s.c.key}"><h2><a href="/${s.c.slug}">${e(s.c.short)}</a></h2><ul>${s.rows.map(r => `<li><a href="/go/${r.id}" target="_blank" rel="noopener">${e(r.headline)}</a></li>`).join('')}</ul><a class="more" href="/${s.c.slug}">More ${e(s.c.short)} &rarr;</a></section>`).join('')}</aside>`;
   const label = cat ? cat.short : 'Latest';

@@ -11,7 +11,8 @@ const HOLD_MIN = 60;
 const WINDOW_HOURS = 2;
 const BIGGER_BY = 2;
 
-// { id, mode: 'pinned' | 'auto', until? } for the story in the top slot now, or null.
+// { id, mode: 'pinned' | 'auto', until?, red? } for the story in the top slot now, or null.
+// red: Craig marked the pin as dramatic news, so the site sets the headline in red.
 export async function currentTop(env, now) {
   const r = (await env.DB.prepare("SELECT k, v FROM kv WHERE k IN ('top_pin', 'top_auto')").all()).results;
   const get = k => { try { return JSON.parse((r.find(x => x.k === k) || {}).v || 'null'); } catch { return null; } };
@@ -20,7 +21,7 @@ export async function currentTop(env, now) {
   const ids = [pin && pin.id, auto && auto.id].filter(Boolean);
   if (!ids.length) return null;
   const live = new Set((await env.DB.prepare(`SELECT id FROM items WHERE status = 'published' AND id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all()).results.map(x => x.id));
-  if (pin && Date.parse(pin.until) > now && live.has(pin.id)) return { id: pin.id, mode: 'pinned', until: pin.until };
+  if (pin && Date.parse(pin.until) > now && live.has(pin.id)) return { id: pin.id, mode: 'pinned', until: pin.until, red: !!pin.red };
   if (auto && live.has(auto.id)) return { id: auto.id, mode: 'auto', since: auto.since };
   return null;
 }
@@ -48,11 +49,19 @@ export async function chooseAutoTop(env, now) {
   await setKV(env, 'top_auto', JSON.stringify({ id: next.id, since: new Date(now).toISOString() }));
 }
 
-export async function pinTop(env, id, hours, now) {
+export async function pinTop(env, id, hours, now, red = false) {
   const prev = await getJSON(env, 'top_pin');
   const until = new Date(now + Math.min(hours, MAX_PIN_HOURS) * 3600000).toISOString();
-  await setKV(env, 'top_pin', JSON.stringify({ id, until, at: new Date(now).toISOString() }));
+  await setKV(env, 'top_pin', JSON.stringify({ id, until, red: !!red, at: new Date(now).toISOString() }));
   return prev;
+}
+// Turn the red headline on or off for the current pin.
+export async function setRed(env, on, now) {
+  const pin = await getJSON(env, 'top_pin');
+  if (!pin || Date.parse(pin.until) <= now) return null;
+  pin.red = !!on;
+  await setKV(env, 'top_pin', JSON.stringify(pin));
+  return pin;
 }
 export async function extendTop(env, hours, now) {
   const pin = await getJSON(env, 'top_pin');
@@ -68,7 +77,7 @@ export async function unpinTop(env, onlyId) {
   return pin;
 }
 export async function restorePin(env, prev) {
-  if (prev && Number.isInteger(prev.id) && prev.until) await setKV(env, 'top_pin', JSON.stringify({ id: prev.id, until: String(prev.until), at: prev.at || null }));
+  if (prev && Number.isInteger(prev.id) && prev.until) await setKV(env, 'top_pin', JSON.stringify({ id: prev.id, until: String(prev.until), red: !!prev.red, at: prev.at || null }));
   else await delKV(env, 'top_pin');
 }
 // "4h 12m left"
