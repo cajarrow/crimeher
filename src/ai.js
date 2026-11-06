@@ -5,7 +5,7 @@
 //    versions, then the one a reader would click first that is still fully accurate.
 // The rules mirror the "CrimeHer Editorial Rules" doc (approved Nov 5, 2026). Change both together.
 
-import { hostOf, isLastResort, plain } from './feeds.js';
+import { hostOf, isLastResort, plain, cleanUrl } from './feeds.js';
 
 export const TRIAGE_MODEL = 'claude-haiku-5-5';
 export const WRITER_MODEL = 'claude-sonnet-5-5';
@@ -253,22 +253,59 @@ export function overlap(a, b) {
 // the article body far more often than in the outlet's headline. Returns '' when the page can't be read.
 const EXCERPT_CHARS = 1600;
 const BOILER = /cookie|subscribe|newsletter|sign up|advertis|all rights reserved|©|copyright|click here|read more|download the app|follow us/i;
+const PAGE_UA = 'Mozilla/5.0 (compatible; CrimeHer/1.0; +https://crimeher.com)';
+
+// A meta tag's content, by property or name, in either attribute order and either quote style.
+function metaOf(html, names) {
+  for (const n of names) {
+    const tag = (html.match(new RegExp(`<meta[^>]+(?:property|name|itemprop)\\s*=\\s*["']${n}["'][^>]*>`, 'i')) || [''])[0];
+    const m = tag.match(/\scontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+    if (m) { const v = plain(m[1] !== undefined ? m[1] : m[2]); if (v) return v; }
+  }
+  return '';
+}
 export function articleExcerpt(html) {
-  const meta = (html.match(/<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]*>/i) || [''])[0];
-  const desc = (meta.match(/content=["']([^"']*)["']/i) || [, ''])[1];
   const body = html.replace(/<(script|style|noscript|nav|header|footer|aside|form)[\s\S]*?<\/\1>/gi, ' ');
   const paras = (body.match(/<p[\s>][\s\S]*?<\/p>/gi) || []).map(p => plain(p)).filter(t => t.length >= 60 && !BOILER.test(t));
-  let out = plain(desc);
+  let out = metaOf(html, ['og:description', 'description', 'twitter:description']);
   for (const p of paras) { if (out.length >= EXCERPT_CHARS) break; if (!out.includes(p.slice(0, 40))) out += (out ? ' ' : '') + p; }
   return out.slice(0, EXCERPT_CHARS);
 }
-async function fetchExcerpt(url) {
+// The page's own headline, summary, publish time and canonical link.
+export function pageMeta(html) {
+  const t = metaOf(html, ['og:title', 'twitter:title']) || plain((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [, ''])[1]);
+  const when = Date.parse(metaOf(html, ['article:published_time', 'datePublished', 'pubdate', 'date']));
+  const canon = (html.match(/<link[^>]+rel=["']canonical["'][^>]*>/i) || [''])[0].match(/href=["']([^"']+)["']/i);
+  return {
+    title: t.replace(/\s+\|\s+[^|]{2,40}$/, '').trim().slice(0, 300), // drop a trailing " | Site Name"
+    description: plain(metaOf(html, ['og:description', 'description', 'twitter:description']), 500),
+    published: Number.isFinite(when) ? new Date(when).toISOString() : null,
+    canonical: metaOf(html, ['og:url']) || (canon ? canon[1] : '')
+  };
+}
+// Words from the link itself, for pages that won't let us read them: /news/teen-held-in-school-plot-123 -> "teen held in school plot".
+export function slugTitle(url) {
+  let parts = [];
+  try { parts = new URL(url).pathname.split('/').filter(Boolean); } catch { return ''; }
+  const best = parts.map(s => decodeURIComponent(s).replace(/\.[a-z]{2,5}$/i, '')).sort((a, b) => (b.match(/-/g) || []).length - (a.match(/-/g) || []).length)[0] || '';
+  const words = best.split(/[-_]+/).filter(w => w && !/^\d+$/.test(w) && !/^[a-z0-9]{12,}$/i.test(w));
+  return words.length >= 3 ? words.join(' ') : '';
+}
+// Fetch an article page. Returns { html, url, err }: html is '' with a short reason when it can't be read.
+export async function fetchPage(url, ms = 6000) {
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CrimeHer/1.0; +https://crimeher.com)', Accept: 'text/html' }, redirect: 'follow', signal: AbortSignal.timeout(6000) });
-    if (!res.ok || !/html/i.test(res.headers.get('content-type') || '')) return '';
-    const html = (await res.text()).slice(0, 400000);
-    return articleExcerpt(html);
-  } catch { return ''; }
+    const res = await fetch(url, { headers: { 'User-Agent': PAGE_UA, Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5' }, redirect: 'follow', signal: AbortSignal.timeout(ms) });
+    const final = res.url || url;
+    if (!res.ok) return { html: '', url: final, err: 'HTTP ' + res.status };
+    const type = (res.headers.get('content-type') || '').split(';')[0];
+    if (!/html/i.test(type)) return { html: '', url: final, err: 'not a web page (' + (type || 'unknown type') + ')' };
+    return { html: (await res.text()).slice(0, 400000), url: final, err: null };
+  } catch (err) { return { html: '', url, err: /timeout|abort/i.test(String(err)) ? 'timed out' : 'could not connect' }; }
+}
+async function fetchExcerpt(url) {
+  const p = await fetchPage(url);
+  const text = p.html ? articleExcerpt(p.html) : '';
+  return { text, err: p.err || (text ? null : 'no article text') };
 }
 
 // Share of the headline's words that come straight from the outlet's title.
@@ -358,7 +395,7 @@ export async function decideNew(env, now, maxItems, kv) {
     for (let w = 0; w < toWrite.length; w += WRITER_BATCH) {
       const group = toWrite.slice(w, w + WRITER_BATCH);
       const excerpts = await Promise.all(group.map(g => fetchExcerpt(g.it.url)));
-      const writeText = 'STORIES:\n\n' + group.map((g, n) => `[${n}] Outlet: ${g.it.outlet || g.it.source_name}\nTitle: ${g.it.title_raw}\nSummary: ${g.it.summary_raw || '(none)'}\nArticle excerpt: ${excerpts[n] || '(not available)'}\nCategory: ${g.category}${g.d.involves_minor ? '\nInvolves a minor: yes' : ''}`).join('\n\n');
+      const writeText = 'STORIES:\n\n' + group.map((g, n) => `[${n}] Outlet: ${g.it.outlet || g.it.source_name}\nTitle: ${g.it.title_raw}\nSummary: ${g.it.summary_raw || '(none)'}\nArticle excerpt: ${excerpts[n].text || '(not available)'}\nCategory: ${g.category}${g.d.involves_minor ? '\nInvolves a minor: yes' : ''}`).join('\n\n');
       let written;
       try { written = (await callClaude(env, stats.writer, WRITER_PROMPT, WRITER_TOOL, writeText, stats.usage, stats.writer !== WRITER_MODEL)).headlines || []; }
       catch (err) { console.error('writer failed', String(err)); stats.errors++; break; }
@@ -390,7 +427,7 @@ export async function decideNew(env, now, maxItems, kv) {
         if (it.priority === 'last_resort' || isLastResort(host)) reasons.push('only source is a last-resort outlet');
         if (!(Number(h.confidence) >= CONFIDENCE_FLOOR)) reasons.push('low confidence');
         const flags = { ...tflags, names_minor: !!h.names_minor, identity_detail: !!h.identity_detail,
-          options: alts.filter(o => o !== headline).slice(0, 3), writer: stats.writer, excerpt: !!excerpts[n], copied: Math.round(copiedShare(it.title_raw, headline) * 100) / 100, swapped };
+          options: alts.filter(o => o !== headline).slice(0, 3), writer: stats.writer, excerpt: !!excerpts[n].text, excerpt_err: excerpts[n].err, copied: Math.round(copiedShare(it.title_raw, headline) * 100) / 100, swapped };
         let status = 'published';
         let note = null;
         if (reasons.length) status = 'held';
@@ -403,4 +440,94 @@ export async function decideNew(env, now, maxItems, kv) {
   }
   for (let i = 0; i < save.length; i += 50) await env.DB.batch(save.slice(i, i + 50));
   return stats;
+}
+
+// Craig adds a story from the desk by pasting its link. The AI reads the page and writes the
+// headlines as usual; the story skips the interest bar (Craig chose it) but keeps every other
+// editorial check, and it waits on the desk for his tap, never publishing on its own.
+// Returns { id } or { error, id? }.
+export async function addByUrl(env, rawUrl, now, kv) {
+  const nowIso = new Date(now).toISOString();
+  let url = cleanUrl(String(rawUrl || '').trim());
+  if (!url) return { error: "That doesn't look like a link." };
+  if (!env.ANTHROPIC_API_KEY) return { error: 'The AI key is missing, so headlines can’t be written.' };
+  const page = await fetchPage(url, 8000);
+  if (page.html) {
+    const finalUrl = cleanUrl(page.url) || url;
+    const canon = cleanUrl(pageMeta(page.html).canonical);
+    url = canon && hostOf(canon) === hostOf(finalUrl) ? canon : finalUrl;
+  }
+  const existing = await env.DB.prepare('SELECT id, status FROM items WHERE url = ?').bind(url).first();
+  if (existing && existing.status === 'published') return { error: 'That story is already live.', id: existing.id };
+  if (existing && existing.status === 'held') return { error: 'That story is already waiting below.', id: existing.id };
+
+  const meta = page.html ? pageMeta(page.html) : {};
+  const title = meta.title || slugTitle(url);
+  if (!title) return { error: `Couldn't read that page${page.err ? ' (' + page.err + ')' : ''}, and the link has no words to go on.` };
+  const excerpt = page.html ? articleExcerpt(page.html) : '';
+  const outlet = hostOf(url);
+  const usage = {};
+  const dayStart = nowIso.slice(0, 10) + 'T00:00:00.000Z';
+  const spent = (await env.DB.prepare(`SELECT COALESCE(SUM(json_extract(notes, '$.est_cost_usd')), 0) AS usd FROM runs WHERE started_at >= ?`).bind(dayStart).first()).usd || 0;
+  const writer = spent >= DAILY_BUDGET_USD ? TRIAGE_MODEL : WRITER_MODEL;
+  const liveSince = await kv.get(env, 'live_since');
+  const identityHold = !liveSince || now < Date.parse(liveSince) + IDENTITY_HOLD_DAYS * 86400000;
+
+  const w = sigWords(title);
+  const recent = (await env.DB.prepare(`SELECT id, headline, title_raw FROM items WHERE status IN ('published','held') AND wp_id IS NULL
+    AND COALESCE(published_at, decided_at) > ? ORDER BY COALESCE(published_at, decided_at) DESC LIMIT 600`).bind(new Date(now - 48 * 3600000).toISOString()).all()).results
+    .map(r => ({ ...r, w: sigWords(r.title_raw + ' ' + r.headline) }));
+  const related = recent.filter(r => { let n = 0; for (const x of w) if (r.w.has(x) && ++n >= 2) return true; return false; }).slice(0, 40);
+  const summary = meta.description || '';
+  let d, h;
+  try {
+    // 1. Triage, for the category and the review flags only.
+    const triageText = `RECENT CRIMEHER HEADLINES that may cover the same stories (id | headline):\n${related.length ? related.map(r => `${r.id} | ${r.headline}`).join('\n') : '(none)'}\n\nNEW ITEMS:\n\n` +
+      `[0] Outlet: ${outlet}\nTitle: ${title}\nSummary: ${summary || '(none)'}\nFeed's usual category: (none, added by the editor)`;
+    d = ((await callClaude(env, TRIAGE_MODEL, TRIAGE_PROMPT, TRIAGE_TOOL, triageText, usage)).decisions || [])[0] || {};
+    const category = CATS_ENUM.includes(d.category) ? d.category : 'breaking';
+    // 2. Headlines.
+    const writeText = `STORIES:\n\n[0] Outlet: ${outlet}\nTitle: ${title}\nSummary: ${summary || '(none)'}\nArticle excerpt: ${excerpt || '(not available)'}\nCategory: ${category}${d.involves_minor ? '\nInvolves a minor: yes' : ''}`;
+    h = ((await callClaude(env, writer, WRITER_PROMPT, WRITER_TOOL, writeText, usage, writer !== WRITER_MODEL)).headlines || [])[0];
+    d.category = category;
+  } catch (err) {
+    console.error('add by url failed', String(err));
+    await logRun(env, nowIso, usage, writer, 1);
+    return { error: 'The AI didn’t answer. Try again in a minute.' };
+  }
+  await logRun(env, nowIso, usage, writer, 0);
+  let headline = h ? cleanHeadline(h.headline) : '';
+  if (!headline) return { error: 'The AI couldn’t write a headline for that one.' };
+  const alts = (Array.isArray(h.options) ? h.options : []).map(cleanHeadline).filter(Boolean);
+  if (copiedShare(title, headline) >= 0.75) {
+    const fresher = alts.filter(o => o.length <= 90).map(o => [o, copiedShare(title, o)]).sort((a, b) => a[1] - b[1])[0];
+    if (fresher && fresher[1] <= 0.55) headline = fresher[0];
+  }
+  const reasons = ['added by you'];
+  if (!page.html) reasons.push('page unreadable');
+  if (d.unclear_legal_status) reasons.push('legal status unclear');
+  if (h.names_minor) reasons.push('headline may name a minor');
+  if (d.minor_accused) reasons.push('minor accused');
+  if (d.child_sexual_abuse) reasons.push('child sexual abuse');
+  if (d.political) reasons.push('political figure or justice policy');
+  if (identityHold && h.identity_detail) reasons.push('identity detail (first two weeks)');
+  if (d.possible_duplicate || Number.isInteger(d.duplicate_of) || recent.some(r => overlap(w, r.w) >= SAME_STORY)) reasons.push('possible duplicate');
+  if (!(Number(h.confidence) >= CONFIDENCE_FLOOR)) reasons.push('low confidence');
+  const flags = { added_by_desk: true, interest: d.interest ?? null, involves_minor: !!d.involves_minor, minor_accused: !!d.minor_accused, child_sexual_abuse: !!d.child_sexual_abuse,
+    political: !!d.political, names_minor: !!h.names_minor, identity_detail: !!h.identity_detail, options: alts.filter(o => o !== headline).slice(0, 3), writer,
+    excerpt: !!excerpt, excerpt_err: page.err || (excerpt ? null : 'no article text') };
+  const row = await env.DB.prepare(`INSERT INTO items (url, title_raw, summary_raw, headline, category, status, confidence, ai_reason, hold_reason, flags, outlet, source_published_at, fetched_at, decided_at)
+      VALUES (?, ?, ?, ?, ?, 'held', ?, 'added from the desk', ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(url) DO UPDATE SET title_raw = excluded.title_raw, summary_raw = excluded.summary_raw, headline = excluded.headline, category = excluded.category,
+        status = 'held', confidence = excluded.confidence, ai_reason = excluded.ai_reason, hold_reason = excluded.hold_reason, flags = excluded.flags,
+        outlet = excluded.outlet, decided_at = excluded.decided_at
+      WHERE items.status NOT IN ('published', 'held')
+      RETURNING id`)
+    .bind(url, title, summary, headline, d.category, Number(h.confidence) || 0, reasons.join('; '), JSON.stringify(flags), outlet, meta.published || nowIso, nowIso, nowIso).first();
+  return row ? { id: row.id } : { error: 'That story changed while the AI was writing. Reload the desk.' };
+}
+
+async function logRun(env, nowIso, usage, writer, errors) {
+  await env.DB.prepare('INSERT INTO runs (started_at, finished_at, errors, notes) VALUES (?, ?, ?, ?)')
+    .bind(nowIso, new Date().toISOString(), errors, JSON.stringify({ usage, est_cost_usd: estimateCost(usage), writer, manual: true })).run();
 }

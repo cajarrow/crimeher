@@ -16,7 +16,9 @@ One Cloudflare Worker and one D1 database. There's no build step and no framewor
 | `src/worker.js` | Serves the front page, eight category pages, the `/go/<id>` click-out, old-URL redirects, `robots.txt`, `sitemap.xml`, `llms.txt` and `/status`. Runs the cron job. |
 | `src/sources.js` | The feed list. Bump `SOURCES_VERSION` after editing it, so the next run syncs it to the database. |
 | `src/feeds.js` | Checks due feeds (each about every 15 minutes), parses RSS and Atom, and stores new items. Items older than 24 hours are stored as `stale`. General-news feeds must pass a crime keyword filter. A feed that fails 6 checks in a row turns itself off. |
-| `src/ai.js` | The AI step. Claude (`claude-haiku-5-5`) applies the Editorial Rules, writes the headline, picks the category, and decides publish, hold or reject. The code enforces the hold rules, the 5-per-outlet daily cap and the last-resort list. |
+| `src/ai.js` | The AI step, in two passes: `claude-haiku-5-5` triages (fit, category, interest 0–10, repeats, review flags), then `claude-sonnet-5-5` writes three hook-first headlines from the feed item and the article's opening. The code enforces the hold rules, the 5-per-outlet daily cap, the last-resort list and a daily cost guard. `addByUrl` handles stories Craig adds from the desk. |
+| `src/desk.js` | The review desk at `/desk` (Cloudflare Access): Waiting, Live and Stats, plus `/desk/act` (publish, reject, save, pull, undo) and `/desk/add` (paste a link; the AI writes the headlines and the card waits for Craig). `/desk?add=<link>` does the same from a shortcut or bookmarklet. |
+| `src/theme.js` | Category colors, shared by the site and the desk. |
 | `migrations/` | D1 schema. Migrations 0001–0004 were applied through the Cloudflare API on Nov 5, 2026, so Wrangler's migration table doesn't list them. Don't re-run them. |
 | `test/` | Parser tests: `npm test`. |
 | `wrangler.jsonc` | Worker name, D1 binding `DB`, cron schedule. |

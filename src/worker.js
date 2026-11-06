@@ -1,7 +1,7 @@
 import { syncSources } from './sources.js';
 import { checkFeeds } from './feeds.js';
 import { decideNew, estimateCost, MODEL } from './ai.js';
-import { deskUser, noteAccessTeam, lockedPage, renderDesk, deskAction } from './desk.js';
+import { deskUser, noteAccessTeam, lockedPage, renderDesk, deskAction, deskAdd } from './desk.js';
 import { KCSS } from './theme.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
@@ -338,6 +338,7 @@ async function route(req, url, env, ctx, preview) {
     const user = await deskUser(req, env);
     if (!user) return lockedPage(env);
     if (p === '/desk/act' && req.method === 'POST') return deskAction(req, env, user, CATS);
+    if (p === '/desk/add' && req.method === 'POST') return deskAdd(req, env, user, CATS, { get: getKV, set: setKV });
     if (p === '/desk' && req.method === 'GET') return renderDesk(env, url, user, CATS);
     return text('Not found', 404);
   }

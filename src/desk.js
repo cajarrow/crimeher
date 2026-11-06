@@ -3,6 +3,7 @@
 // JWT itself, against Craig's team domain, and only lets in emails on DESK_EMAILS.
 
 import { KCSS } from './theme.js';
+import { addByUrl } from './ai.js';
 
 const CERTS = { team: '', at: 0, keys: [] };
 
@@ -95,6 +96,18 @@ main{max-width:1200px;margin:0 auto;padding:12px 12px 40px}
 .card.gone{opacity:0;transform:translateX(24px)}
 .why{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--red)}
 .why span{background:var(--redt);border-radius:8px;padding:4px 9px}
+.why .mine{background:#E6EEF9;color:#1B4FA0}
+.card.new{animation:glow 1.8s ease-out}
+@keyframes glow{from{box-shadow:0 0 0 3px #F2C94C}to{box-shadow:0 0 0 3px transparent}}
+.add{position:relative;display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px;padding:10px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.add input{flex:1;min-width:0;height:48px;padding:0 14px;border:1.5px solid transparent;border-radius:12px;background:var(--fill);font:inherit;font-size:16px;color:var(--ink)}
+.add input:focus{outline:none;border-color:var(--ink);background:#fff}
+.add .btn{flex:0 0 auto;height:48px;padding:0 24px}
+.add-msg{flex-basis:100%;margin:0 4px 2px;font-size:13px;font-weight:600;color:var(--muted)}
+.add-msg.err{color:var(--red)}
+.add.busy::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,transparent,var(--ink),transparent) no-repeat;background-size:40% 100%;animation:slide 1.1s linear infinite}
+@keyframes slide{from{background-position:-60% 0}to{background-position:160% 0}}
+@media (min-width:760px){.add{max-width:760px}}
 .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .meta b{color:var(--ink)}
 .cat{font:inherit;font-size:13px;font-weight:700;height:32px;padding:0 28px 0 12px;border:0;border-radius:16px;background:var(--kt,var(--soft)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23141414' stroke-opacity='.55' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 11px center;color:var(--ki,var(--ink));-webkit-appearance:none;appearance:none;cursor:pointer}
@@ -134,7 +147,7 @@ button:disabled{opacity:.5;cursor:default}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;border-radius:14px;padding:10px 10px 10px 16px;display:flex;gap:14px;align-items:center;font-weight:600;transition:transform .25s;z-index:10;max-width:calc(100% - 32px)}
 .toast.on{transform:translateX(-50%) translateY(0)}
 .toast button{height:38px;padding:0 14px;border-radius:10px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);font-size:14px;font-weight:700}
-@media (prefers-reduced-motion:reduce){.card,.toast{transition:none}.alt.swapped{animation:none}}
+@media (prefers-reduced-motion:reduce){.card,.toast{transition:none}.alt.swapped,.card.new,.add.busy::after{animation:none}}
 .chips{display:flex;gap:6px;overflow-x:auto;margin:0 0 12px;scrollbar-width:none}
 .chip{flex:none;display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:19px;background:#fff;border:1px solid var(--line);font-size:14px;font-weight:700;text-decoration:none;color:var(--ink)}
 .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
@@ -186,9 +199,12 @@ const REASON_LABEL = {
   'low confidence': 'Unsure of headline', 'fit unclear': 'Fit unclear', 'category unclear': 'Category unclear',
   'possible duplicate': 'Possible repeat', 'legal status unclear': 'Charged? Unclear', 'minor accused': 'Minor accused',
   'child sexual abuse': 'Child abuse', 'political figure or justice policy': 'Political', 'headline may name a minor': 'May name a minor',
-  'identity detail (first two weeks)': 'Identity detail', 'only source is a last-resort outlet': 'Last-resort outlet'
+  'identity detail (first two weeks)': 'Identity detail', 'only source is a last-resort outlet': 'Last-resort outlet',
+  'page unreadable': 'Couldn\'t open article: check facts'
 };
+const MINE = 'added by you';
 const LIMIT = 90;
+const ADD_FORM = `<form class="add" id="add" autocomplete="off" novalidate><input id="addurl" type="url" name="url" placeholder="Paste a link to add a story" aria-label="Story link" inputmode="url" enterkeyhint="go"><button type="submit" class="btn yes">Add</button><p class="add-msg" id="addmsg" role="status" hidden></p></form>`;
 
 export async function renderDesk(env, url, user, CATS) {
   const now = Date.now();
@@ -201,39 +217,44 @@ export async function renderDesk(env, url, user, CATS) {
   }
   const [rows, counts] = await env.DB.batch([
     view === 'held'
-      ? env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, hold_reason, flags, source_published_at, 0 AS clicks FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
+      ? env.DB.prepare(`SELECT ${HELD_COLS} FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
       : env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, NULL AS hold_reason, flags, source_published_at,
           (SELECT COUNT(*) FROM clicks c WHERE c.item_id = items.id) AS clicks
           FROM items WHERE status = 'published' AND wp_id IS NULL ORDER BY published_at DESC LIMIT 80`),
     heldQ
   ]);
-  const opts = sel => CATS.map(k => `<option value="${k.key}"${k.key === sel ? ' selected' : ''}>${e(k.short)}</option>`).join('');
-  const cards = rows.results.map(r => {
-    const why = (r.hold_reason || '').split(';').map(s => s.trim()).filter(Boolean).map(s => `<span>${e(REASON_LABEL[s] || s)}</span>`).join('');
-    const head = r.headline || r.title_raw;
-    let alts = [];
-    try { alts = (JSON.parse(r.flags || '{}').options || []).filter(o => o && o !== head).slice(0, 2); } catch { /* no options */ }
-    const altBtns = alts.map(a => `<button type="button" class="alt" data-alt="${e(a)}">${e(a)}</button>`).join('');
-    // Waiting: versions shown open, they're part of the decision. Live: tucked away until needed.
-    const altHtml = !alts.length ? '' : view === 'held'
-      ? `<div class="alts"><span class="lbl">Other versions <i>&middot; tap to swap</i></span>${altBtns}</div>`
-      : `<details class="alts"><summary><span class="lbl">Other versions (${alts.length})</span></summary>${altBtns}</details>`;
-    const facts = [e(r.outlet || ''), ago(r.source_published_at, now)];
-    if (view === 'live') facts.push(`<b>${n0(r.clicks)}</b>&nbsp;${r.clicks === 1 ? 'click' : 'clicks'}`);
-    const acts = view === 'held'
-      ? `<div class="acts"><button type="button" class="btn no" data-act="reject">Reject</button><button type="button" class="btn yes" data-act="publish">Publish</button></div>`
-      : `<div class="acts"><button type="button" class="btn no" data-act="pull">Pull</button><button type="button" class="btn yes" data-act="save">Save changes</button></div>`;
-    return `<article class="card${view === 'live' ? ' is-live' : ''}" data-id="${r.id}">${why ? `<div class="why">Held:${why}</div>` : ''}
-<div class="meta"><select class="cat k-${e(r.category)}" aria-label="Category">${opts(r.category)}</select><span>${facts.filter(Boolean).join(' &middot; ')}</span></div>
-<textarea class="hl" rows="2" aria-label="Headline">${e(head)}</textarea><div class="over"${head.length > LIMIT ? '' : ' hidden'}>${head.length}/${LIMIT} &middot; too long</div>${altHtml}
-<div class="src"><span class="lbl">Original</span>${e(r.title_raw)} <a href="${e(r.url)}" target="_blank" rel="noopener">Read&nbsp;article&nbsp;&#8599;</a></div>${acts}</article>`;
-  }).join('');
+  const cards = rows.results.map(r => cardHtml(r, view, CATS, now)).join('');
   const empty = view === 'held'
     ? `<div class="empty"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#E5F4E4"/><path d="M15 25l6 6 12-14" stroke="#1E6B3A" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>All clear</b>Nothing is waiting for you.</div>`
     : `<div class="empty"><b>Nothing live yet</b>New headlines show up here as they publish.</div>`;
   const body = deskHeader(view, counts.results[0]) + `
-<main><div id="list">${cards || empty}</div></main><div class="toast" id="toast" role="status"><span id="tmsg"></span><button type="button" id="undo">Undo</button></div>`;
+<main>${view === 'held' ? ADD_FORM : ''}<div id="list">${cards || empty}</div></main><div class="toast" id="toast" role="status"><span id="tmsg"></span><button type="button" id="undo">Undo</button></div>`;
   return respond(page('CrimeHer Desk', body, DESK_JS(view)));
+}
+
+const HELD_COLS = 'id, url, headline, category, outlet, title_raw, hold_reason, flags, source_published_at, 0 AS clicks';
+function cardHtml(r, view, CATS, now) {
+  const opts = CATS.map(k => `<option value="${k.key}"${k.key === r.category ? ' selected' : ''}>${e(k.short)}</option>`).join('');
+  const reasons = (r.hold_reason || '').split(';').map(s => s.trim()).filter(Boolean);
+  const warn = reasons.filter(s => s !== MINE).map(s => `<span>${e(REASON_LABEL[s] || s)}</span>`).join('');
+  const why = reasons.includes(MINE) ? `<div class="why"><span class="mine">Added by you</span>${warn}</div>` : warn ? `<div class="why">Held:${warn}</div>` : '';
+  const head = r.headline || r.title_raw;
+  let alts = [];
+  try { alts = (JSON.parse(r.flags || '{}').options || []).filter(o => o && o !== head).slice(0, 2); } catch { /* no options */ }
+  const altBtns = alts.map(a => `<button type="button" class="alt" data-alt="${e(a)}">${e(a)}</button>`).join('');
+  // Waiting: versions shown open, they're part of the decision. Live: tucked away until needed.
+  const altHtml = !alts.length ? '' : view === 'held'
+    ? `<div class="alts"><span class="lbl">Other versions <i>&middot; tap to swap</i></span>${altBtns}</div>`
+    : `<details class="alts"><summary><span class="lbl">Other versions (${alts.length})</span></summary>${altBtns}</details>`;
+  const facts = [e(r.outlet || ''), ago(r.source_published_at, now)];
+  if (view === 'live') facts.push(`<b>${n0(r.clicks)}</b>&nbsp;${r.clicks === 1 ? 'click' : 'clicks'}`);
+  const acts = view === 'held'
+    ? `<div class="acts"><button type="button" class="btn no" data-act="reject">Reject</button><button type="button" class="btn yes" data-act="publish">Publish</button></div>`
+    : `<div class="acts"><button type="button" class="btn no" data-act="pull">Pull</button><button type="button" class="btn yes" data-act="save">Save changes</button></div>`;
+  return `<article class="card${view === 'live' ? ' is-live' : ''}" data-id="${r.id}">${why}
+<div class="meta"><select class="cat k-${e(r.category)}" aria-label="Category">${opts}</select><span>${facts.filter(Boolean).join(' &middot; ')}</span></div>
+<textarea class="hl" rows="2" aria-label="Headline">${e(head)}</textarea><div class="over"${head.length > LIMIT ? '' : ' hidden'}>${head.length}/${LIMIT} &middot; too long</div>${altHtml}
+<div class="src"><span class="lbl">Original</span>${e(r.title_raw)} <a href="${e(r.url)}" target="_blank" rel="noopener">Read&nbsp;article&nbsp;&#8599;</a></div>${acts}</article>`;
 }
 
 function deskHeader(view, c) {
@@ -320,7 +341,36 @@ btns.forEach(x=>x.disabled=true);
 try{await post(body);if(act==='save'){toast(label.save);card.classList.remove('dirty');btns.forEach(x=>x.disabled=false);return}
 last={card,id:body.id,from:V};card.classList.add('gone');setTimeout(()=>{card.hidden=true},260);if(V==='held')count(-1);toast(label[act],true)}
 catch(err){btns.forEach(x=>x.disabled=false);toast('Didn\\'t save. Try again.')}});
-U.addEventListener('click',async()=>{const x=last;if(!x)return;last=null;try{await post({id:x.id,action:'restore',to:x.from});x.card.hidden=false;requestAnimationFrame(()=>x.card.classList.remove('gone'));x.card.querySelectorAll('button').forEach(b=>b.disabled=false);if(x.from==='held')count(1);T.classList.remove('on')}catch(e){last=x;toast('Couldn\\'t undo.')}});})();`;
+U.addEventListener('click',async()=>{const x=last;if(!x)return;last=null;try{await post({id:x.id,action:'restore',to:x.from});x.card.hidden=false;requestAnimationFrame(()=>x.card.classList.remove('gone'));x.card.querySelectorAll('button').forEach(b=>b.disabled=false);if(x.from==='held')count(1);T.classList.remove('on')}catch(e){last=x;toast('Couldn\\'t undo.')}});
+const F=document.getElementById('add');
+if(F){const I=document.getElementById('addurl'),AM=document.getElementById('addmsg'),AB=F.querySelector('button');let busy=false;
+function say(m,err){AM.textContent=m;AM.hidden=!m;AM.classList.toggle('err',!!err)}
+function flash(c){c.classList.remove('new');void c.offsetWidth;c.classList.add('new')}
+async function add(){const u=I.value.trim();if(busy)return;if(!u){I.focus();return}if(!/^https?:\\/\\/[^\\s.]+\\.\\S+$/i.test(u)){say('Paste a full link, starting with https://',true);return}
+busy=true;F.classList.add('busy');AB.disabled=true;I.readOnly=true;AB.textContent='Writing…';say('Reading the article and writing headlines…');
+try{const r=await fetch('/desk/add',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({url:u})});const j=await r.json().catch(()=>({error:'Something went wrong. Try again.'}));
+if(j.html){const t=document.createElement('div');t.innerHTML=j.html;const c=t.firstElementChild,em=L.querySelector('.empty');if(em)em.remove();L.prepend(c);flash(c);count(1);I.value='';say('');c.scrollIntoView({behavior:'smooth',block:'nearest'});toast('Added. Check it, then publish.')}
+else{say(j.error||'Something went wrong. Try again.',true);const c=j.id&&L.querySelector('.card[data-id="'+j.id+'"]');if(c){flash(c);c.scrollIntoView({behavior:'smooth',block:'center'})}}}
+catch(e){say('Couldn\\'t reach the desk. Check your connection and try again.',true)}
+finally{busy=false;F.classList.remove('busy');AB.disabled=false;I.readOnly=false;AB.textContent='Add'}}
+F.addEventListener('submit',ev=>{ev.preventDefault();add()});
+I.addEventListener('paste',()=>setTimeout(()=>{if(/^https?:\\/\\/\\S+$/i.test(I.value.trim()))add()},0));
+I.addEventListener('input',()=>{if(AM.classList.contains('err'))say('')});
+const q=new URLSearchParams(location.search).get('add');if(q){I.value=q;history.replaceState(null,'','/desk');add()}}})();`;
+
+// POST /desk/add {url}: the AI reads the page and writes the headlines; the card comes back ready to show.
+export async function deskAdd(req, env, user, CATS, kv) {
+  const origin = req.headers.get('origin');
+  if (origin && origin !== new URL(req.url).origin) return new Response('Bad origin', { status: 403 });
+  const out = o => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  let b;
+  try { b = await req.json(); } catch { return out({ error: 'Paste a link first.' }); }
+  let r;
+  try { r = await addByUrl(env, b.url, Date.now(), kv); } catch (err) { console.error('desk add', String(err)); return out({ error: 'Something went wrong. Try again.' }); }
+  if (r.error) return out(r);
+  const row = await env.DB.prepare(`SELECT ${HELD_COLS} FROM items WHERE id = ?`).bind(r.id).first();
+  return out({ id: r.id, html: cardHtml(row, 'held', CATS, Date.now()) });
+}
 
 // POST /desk/act {id, action, headline?, category?, to?}
 export async function deskAction(req, env, user, CATS) {
