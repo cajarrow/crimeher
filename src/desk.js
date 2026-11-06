@@ -93,6 +93,9 @@ textarea:focus,select:focus{outline:2px solid var(--ink);outline-offset:1px}
 .count{font-size:11px;color:var(--muted);text-align:right}.count.over{color:var(--red);font-weight:700}
 .why{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
 .why span{font-size:12px;font-weight:700;color:var(--red);background:#FBEBEB;border-radius:10px;padding:3px 8px}
+.alts{margin:2px 0 6px}
+.alts span{display:block;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.alt{display:block;width:100%;height:auto;min-height:40px;margin:0 0 6px;padding:8px 12px;text-align:left;font-size:14px;font-weight:600;line-height:1.3;background:var(--soft);color:var(--ink);border:1px dashed #CFCCC6;border-radius:10px}
 .src{font-size:13px;color:var(--muted);line-height:1.4}
 .src b{color:var(--ink);font-weight:600}
 .src p{margin:4px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -172,8 +175,8 @@ export async function renderDesk(env, url, user, CATS) {
   }
   const [rows, counts] = await env.DB.batch([
     view === 'held'
-      ? env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, summary_raw, hold_reason, source_published_at, decided_at FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
-      : env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, summary_raw, NULL AS hold_reason, source_published_at, published_at AS decided_at FROM items WHERE status = 'published' AND wp_id IS NULL ORDER BY published_at DESC LIMIT 80`),
+      ? env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, summary_raw, hold_reason, flags, source_published_at, decided_at FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
+      : env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, summary_raw, NULL AS hold_reason, flags, source_published_at, published_at AS decided_at FROM items WHERE status = 'published' AND wp_id IS NULL ORDER BY published_at DESC LIMIT 80`),
     env.DB.prepare(`SELECT SUM(status = 'held') AS held, SUM(status = 'published' AND published_at > ?) AS live24, SUM(status = 'rejected' AND decided_at > ? AND COALESCE(ai_reason, '') NOT LIKE 'desk:%') AS rej24 FROM items WHERE wp_id IS NULL`).bind(dayAgo, dayAgo)
   ]);
   const c = counts.results[0] || {};
@@ -181,11 +184,14 @@ export async function renderDesk(env, url, user, CATS) {
   const cards = rows.results.map(r => {
     const why = (r.hold_reason || '').split(';').map(s => s.trim()).filter(Boolean).map(s => `<span>${e(REASON_LABEL[s] || s)}</span>`).join('');
     const len = (r.headline || '').length;
+    let alts = [];
+    try { alts = (JSON.parse(r.flags || '{}').options || []).filter(o => o && o !== r.headline).slice(0, 2); } catch { /* no options */ }
+    const altHtml = alts.length ? `<div class="alts"><span>Other versions</span>${alts.map(a => `<button type="button" class="alt" data-alt="${e(a)}">${e(a)}</button>`).join('')}</div>` : '';
     const acts = view === 'held'
       ? `<div class="acts"><button type="button" class="no" data-act="reject">Reject</button><button type="button" class="yes" data-act="publish">Publish</button></div>`
       : `<div class="acts three"><button type="button" class="no" data-act="pull">Pull</button><button type="button" class="yes" data-act="save">Save</button></div>`;
     return `<article class="card" data-id="${r.id}"><div class="meta"><select aria-label="Category">${opts(r.category)}</select><span>${e(r.outlet || '')}</span><span aria-hidden="true">&middot;</span><span>${ago(r.source_published_at, now)}</span></div>
-<textarea rows="2" aria-label="Headline">${e(r.headline || r.title_raw)}</textarea><div class="count${len > 90 ? ' over' : ''}">${len}/90</div>
+<textarea rows="2" aria-label="Headline">${e(r.headline || r.title_raw)}</textarea><div class="count${len > 90 ? ' over' : ''}">${len}/90</div>${altHtml}
 ${why ? `<div class="why">${why}</div>` : ''}<div class="src"><b>${e(r.title_raw)}</b>${r.summary_raw ? `<p>${e(r.summary_raw)}</p>` : ''}<a href="${e(r.url)}" target="_blank" rel="noopener">Open article &#8599;</a></div>${acts}</article>`;
   }).join('');
   const empty = view === 'held'
@@ -267,7 +273,7 @@ const label={publish:'Published',reject:'Rejected',save:'Saved',pull:'Pulled fro
 async function post(b){const r=await fetch('/desk/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json()}
 function toast(msg,undo){M.textContent=msg;U.style.display=undo?'':'none';T.classList.add('on');clearTimeout(timer);timer=setTimeout(()=>T.classList.remove('on'),undo?6000:2500)}
 L.addEventListener('input',ev=>{if(ev.target.tagName!=='TEXTAREA')return;const n=ev.target.value.length,c=ev.target.nextElementSibling;c.textContent=n+'/90';c.classList.toggle('over',n>90)});
-L.addEventListener('click',async ev=>{const b=ev.target.closest('button[data-act]');if(!b)return;const card=b.closest('.card'),act=b.dataset.act;
+L.addEventListener('click',async ev=>{const alt=ev.target.closest('button[data-alt]');if(alt){const card=alt.closest('.card'),ta=card.querySelector('textarea'),cur=ta.value;ta.value=alt.dataset.alt;alt.dataset.alt=cur;alt.textContent=cur;ta.dispatchEvent(new Event('input',{bubbles:true}));return}const b=ev.target.closest('button[data-act]');if(!b)return;const card=b.closest('.card'),act=b.dataset.act;
 const body={id:+card.dataset.id,action:act,headline:card.querySelector('textarea').value.trim(),category:card.querySelector('select').value};
 card.querySelectorAll('button').forEach(x=>x.disabled=true);
 try{await post(body);if(act==='save'){toast(label.save);card.querySelectorAll('button').forEach(x=>x.disabled=false);return}

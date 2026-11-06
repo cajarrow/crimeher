@@ -32,16 +32,33 @@ Reject (fit "no"): politics or policy with no crime or justice angle, opinion an
 Categories:${CATEGORY_GUIDE}
 
 VOICE
-Urgent but factual: strong verbs and real stakes, with no gore and no melodrama. The voice leans toward a female audience.
+CrimeHer headlines work like Drudge Report or Citizen Free Press: every headline is a hook that makes the reader need to click, and it still tells her what happened. Urgent, vivid, factual. No gore, no melodrama.
+Most readers are women who love true crime. Lean into what grips them: the twist, the betrayal, the danger hiding in plain sight, the detail nobody saw coming, justice finally served.
 CrimeHer is not woke. Its rules center on truth, justice and the American way. Headlines follow the facts, not mainstream framing. Don't soften, hedge or leave out facts the source reports because they're uncomfortable. Don't add framing the source doesn't support.
 
 HEADLINE CRAFT
-1. Lead with what happened and where: the act, the place, the status (charged, missing, convicted).
-2. Keep it under about 90 characters, so it fits two lines on a phone.
-3. Use Title Case.
-4. One strong verb beats stacked adjectives. Skip brutal, haunting, chilling, shocking, horror and heartbreaking unless the fact itself carries the weight.
-5. No question headlines and no clickbait teasers. The headline tells the story, and the click gives the detail.
-6. Proofread. Every word is spelled correctly, and names match the source exactly.
+1. Find the hook first: the one true detail that makes a reader say "wait, what?" (the missing cow, the car trunk, "started on Valentine's Day"). Lead with it or build the headline around it. Never bury it under names, ages and towns.
+2. Then make sure the headline still says what happened: the crime and the status (charged, caught, convicted, missing, found). A hook with no news is a teaser, and teasers are out.
+3. Rewrite. Don't paraphrase the outlet's headline. If the outlet's headline already has the hook, keep the hook and make it tighter and punchier.
+4. Leave out names and ages of people readers won't recognize. They don't hook anyone; the article has them. Use a name when the person is famous or the name is the story (Lindsay Clancy, Diddy, Ted Bundy), or when a missing person is still being searched for.
+5. Aim for 50 to 75 characters. Never more than 90.
+6. Tools you can use: a short quote taken word for word from the title or summary, in quotes; "Cops:" or "Police Say" when the claim comes from police; a colon or a dash to set up the twist.
+7. One strong verb beats stacked adjectives. Skip brutal, haunting, chilling, shocking, horror, horrifying and heartbreaking. The fact carries the punch, not the adjective.
+8. No question headlines and no "you won't believe" teasers.
+9. Use Title Case. Proofread: every word spelled correctly, and any name matches the source exactly.
+10. Write three different versions, each with a different hook or angle, then pick the one a reader would click first that is still fully accurate.
+
+EXAMPLES (outlet headline -> CrimeHer headline)
+Good:
+- "Alabama man fatally shot nephew's wife amid argument over missing cow" -> "Killed Over a Missing Cow: Alabama Man Guilty of Murdering Nephew's Wife"
+- "Ex-Pinellas deputy accused of tracking estranged wife using FLOCK, sheriff says: 'Started on Valentine's Day'" -> "'Started on Valentine's Day': Ex-Deputy Accused of Tracking Wife With Plate Cameras"
+- "Foster Mother Charged With Murder After Missing Philly Girl Found Dead in Truck of Car in NJ" -> "Missing Philly Girl Found Dead in a Car Trunk — Her Foster Mom Is Charged"
+- "Florida mom arrested after leaving 4 kids home alone during dayslong trip to Vegas" -> "Vegas Getaway: Florida Mom Arrested for Leaving 4 Kids Home Alone for Days"
+- "Utah authorities connecting serial killer Ted Bundy to another 1970s homicide" -> "Ted Bundy Linked to Another 1970s Murder in Utah"
+Bad, and why:
+- "Escaped Tennessee Murderer Jacob Morley Caught in Missouri After Week on the Run" (from "Cops: While Hiding in Shed, Escapee Drank Beer, Made Garlic Bread"): names a stranger and throws away the hook. Better: "Escaped Inmate Caught Hiding in a Shed With Beer and Garlic Bread, Cops Say"
+- "Fugitive Made Garlic Bread in a Shed": all hook, no news. It never says what happened.
+- "Fresno Police Arrest Miguel Aguilar Yepez, 25, After Armed Man Looks Into 911 Caller's Tent": a wire-service paraphrase stuffed with a name and an age.
 
 ACCURACY (this floor always applies)
 1. Every fact in the headline traces to the source's title or summary. Nothing is added, guessed or inferred.
@@ -49,9 +66,7 @@ ACCURACY (this floor always applies)
 3. One story, one headline. If an item covers the same case and the same development as a recent headline, set duplicate_of to that headline's id. If two new items in this batch cover the same story, write the headline for the first and set same_as_item on the others to the first item's number. If a later item reports a genuinely new development (charged, verdict, found), it is not a duplicate.
 
 PEOPLE AND IDENTITY
-- Accused adults: named once charged, always with "charged" or "accused" until a verdict.
-- Convicted people: named, with the verdict.
-- Adult victims: named when the source names them.
+- Accused adults may be named once charged, always with "charged" or "accused" until a verdict. Convicted people may be named, with the verdict. Adult victims may be named when the source names them. These are permissions, not requirements: follow HEADLINE CRAFT rule 4 on when a name earns its place.
 - Minors (victims, suspects or witnesses): never named, even if the source names them. Describe them by age instead, e.g. "17-Year-Old Girl". Check every headline that involves a minor for their name before you return it.
   Two exceptions: (1) a missing child in an active police or AMBER Alert may be named, because naming helps find them (once found, stop naming them); (2) a minor whose name is the public identity of a widely known, decades-old case (e.g. JonBenét Ramsey) may be named.
 - Sexual-assault victims: never named, even if the source names them.
@@ -90,7 +105,8 @@ const TOOL = {
             reject_reason: { type: 'string' },
             category: { type: 'string', enum: ['breaking', 'missing', 'alerts', 'safety', 'courtroom', 'cold', 'truecrime', 'watch'] },
             category_unsure: { type: 'boolean' },
-            headline: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' }, description: 'Three different headline versions, each with a different hook or angle.' },
+            headline: { type: 'string', description: 'The chosen version: the one a reader would click first that is still fully accurate.' },
             duplicate_of: { type: ['integer', 'null'], description: 'Id of the recent headline this repeats, or null.' },
             same_as_item: { type: ['integer', 'null'], description: 'Number of an earlier item in this batch that covers the same story, or null.' },
             names_minor: { type: 'boolean' },
@@ -117,7 +133,7 @@ async function callClaude(env, userText) {
     headers: { 'content-type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 6000,
+      max_tokens: 12000,
       system: SYSTEM_PROMPT,
       tools: [TOOL],
       tool_choice: { type: 'tool', name: TOOL.name },
@@ -206,7 +222,7 @@ export async function decideNew(env, now, maxItems, kv) {
         else status = 'published';
         seenThisBatch.set(key, it.id);
       }
-      const flags = JSON.stringify({ fit: d.fit, category_unsure: !!d.category_unsure, possible_duplicate: !!d.possible_duplicate, unclear_legal_status: !!d.unclear_legal_status, involves_minor: !!d.involves_minor, minor_accused: !!d.minor_accused, child_sexual_abuse: !!d.child_sexual_abuse, political: !!d.political, identity_detail: !!d.identity_detail, duplicate_of: d.duplicate_of ?? null });
+      const flags = JSON.stringify({ fit: d.fit, category_unsure: !!d.category_unsure, possible_duplicate: !!d.possible_duplicate, unclear_legal_status: !!d.unclear_legal_status, involves_minor: !!d.involves_minor, minor_accused: !!d.minor_accused, child_sexual_abuse: !!d.child_sexual_abuse, political: !!d.political, identity_detail: !!d.identity_detail, duplicate_of: d.duplicate_of ?? null, options: (Array.isArray(d.options) ? d.options : []).map(cleanHeadline).filter(o => o && o !== headline).slice(0, 3) });
       stmts.push(env.DB.prepare(`UPDATE items SET status = ?, headline = ?, category = ?, confidence = ?, ai_reason = ?, hold_reason = ?, flags = ?, decided_at = ?,
           published_at = CASE WHEN ? = 'published' THEN ? ELSE published_at END WHERE id = ? AND status = 'new'`)
         .bind(status, headline || null, d.category || it.category, Number(d.confidence) || 0, note || null, reasons.join('; ') || null, flags, nowIso, status, nowIso, it.id));
