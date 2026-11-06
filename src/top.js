@@ -2,7 +2,8 @@
 // 1. Pinned: Craig picks a headline on the desk and how long it stays (2, 6 or 12 hours).
 // 2. Automatic, when nothing is pinned: the strongest story of the last 2 hours (the AI's interest
 //    score, newest first on ties), held for at least an hour so the slot doesn't churn. A story
-//    rated 2+ points higher takes over early. Chosen by the cron job, so page views only read it.
+//    rated 2+ points higher takes over early. Near-copies of the outlet's headline (copied >= 0.6) never
+//    get the slot. Chosen by the cron job, so page views only read it.
 import { setKV, delKV, getJSON } from './kv.js';
 
 export const PIN_HOURS = [2, 6, 12];
@@ -36,6 +37,7 @@ export async function chooseAutoTop(env, now) {
     env.DB.prepare(`SELECT id, status, COALESCE(json_extract(flags, '$.interest'), 0) AS interest FROM items WHERE id = ?`).bind(cur ? cur.id : -1),
     env.DB.prepare(`SELECT id, COALESCE(json_extract(flags, '$.interest'), 0) AS interest FROM items
       WHERE status = 'published' AND wp_id IS NULL AND category <> 'watch' AND published_at > ?
+        AND COALESCE(json_extract(flags, '$.copied'), 0) < 0.6
       ORDER BY interest DESC, published_at DESC LIMIT 1`).bind(since)
   ]);
   const c = curRow.results[0];

@@ -438,6 +438,8 @@ export async function decideNew(env, now, maxItems, kv) {
         }
         const host = it.outlet || hostOf(it.url);
         const reasons = [];
+        // Still mostly the outlet's own wording after the swap attempt: wait on the desk rather than publish a near-copy (Craig, Nov 6).
+        if (copiedShare(it.title_raw, headline) >= 0.75) reasons.push('too close to the original headline');
         if (d.fit === 'unsure') reasons.push('fit unclear');
         // Category doubt alone no longer holds a story (Craig, Nov 6): the closest category stands and he can change it on the desk.
         if (d.unclear_legal_status) reasons.push('legal status unclear');
