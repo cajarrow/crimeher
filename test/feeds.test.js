@@ -61,3 +61,9 @@ test('bad URLs are dropped and text is cleaned', () => {
   assert.equal(plain('A&nbsp;&amp;&nbsp;B', 0), 'A & B');
   assert.equal(plain('x'.repeat(20), 10).length, 10);
 });
+
+test('a blurb repeated across a feed is dropped', () => {
+  const item = n => `<item><title>Story ${n}</title><link>https://e.com/${n}</link><description>Same blurb about another story.</description></item>`;
+  const items = parseFeed(`<rss><channel>${[1, 2, 3].map(item).join('')}<item><title>Story 4</title><link>https://e.com/4</link><description>Its own blurb.</description></item></channel></rss>`);
+  assert.deepEqual(items.map(i => i.summary), ['', '', '', 'Its own blurb.']);
+});

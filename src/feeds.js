@@ -87,6 +87,11 @@ export function parseFeed(xml) {
     const published = toIso(tag(b, 'pubDate') || tag(b, 'published') || tag(b, 'updated') || tag(b, 'dc:date'));
     out.push({ url, guid: plain(tag(b, 'guid') || tag(b, 'id')).slice(0, 500) || null, title, summary, published });
   }
+  // Some feeds (NBC stations) repeat one story's blurb on every item. A summary shared by
+  // 3+ items in one feed belongs to none of them, so drop it rather than mislead the AI.
+  const seen = {};
+  for (const it of out) if (it.summary) seen[it.summary] = (seen[it.summary] || 0) + 1;
+  for (const it of out) if (it.summary && seen[it.summary] >= 3) it.summary = '';
   return out;
 }
 
