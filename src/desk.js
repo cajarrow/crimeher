@@ -4,6 +4,7 @@
 
 import { KCSS } from './theme.js';
 import { addByUrl } from './ai.js';
+import { FAVICON_SVG } from './icons.js';
 
 const CERTS = { team: '', at: 0, keys: [] };
 
@@ -184,7 +185,7 @@ button:disabled{opacity:.5;cursor:default}
 .none{margin:4px 0;color:var(--muted);font-size:14px}`;
 
 function page(title, body, script) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><title>${e(title)}</title><meta name="theme-color" content="#ffffff"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="CH Desk"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,800&display=swap"><style>${DESK_CSS}${KCSS}</style></head><body>${body}${script ? `<script>${script}</script>` : ''}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><title>${e(title)}</title><meta name="theme-color" content="#ffffff"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="CH Desk"><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(FAVICON_SVG)}"><link rel="apple-touch-icon" href="/desk-icon.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,800&display=swap"><style>${DESK_CSS}${KCSS}</style></head><body>${body}${script ? `<script>${script}</script>` : ''}</body></html>`;
 }
 function respond(html, status = 200) {
   return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow' } });

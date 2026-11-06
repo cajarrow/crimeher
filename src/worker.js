@@ -3,6 +3,7 @@ import { checkFeeds } from './feeds.js';
 import { decideNew, estimateCost, MODEL } from './ai.js';
 import { deskUser, noteAccessTeam, lockedPage, renderDesk, deskAction, deskAdd } from './desk.js';
 import { KCSS } from './theme.js';
+import { FAVICON_SVG, PNG, MANIFEST } from './icons.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
 const AI_PER_RUN = 40;      // new items the AI decides per run
@@ -27,7 +28,7 @@ const GA_ID = 'G-WVXQ9P5GT6';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const UA = { 'User-Agent': 'CrimeHer-archive/1.0 (+https://crimeher.com)' };
 const HOME_DESC = "The day's true-crime headlines in one place: breaking news, missing persons, alerts, trials, cold cases and more. Every headline links to the original reporting.";
-const FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23141414'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='46' fill='%23ffffff'%3Ec%3C/text%3E%3C/svg%3E";
+const FAVICON = 'data:image/svg+xml,' + encodeURIComponent(FAVICON_SVG);
 const FOOTER = '<footer><p>Every headline links to the original reporting.</p><p>&copy; 2026 CrimeHer</p></footer>';
 const SIGNUP = '<section class="signup" aria-labelledby="su-h"><div class="txt"><h2 id="su-h">Get the Daily Briefing</h2><p>The day&#39;s top true-crime headlines, in your inbox daily.</p></div><form class="frm"><label for="su-e">Email address</label><div class="row"><input id="su-e" name="email" type="email" placeholder="you@example.com" disabled><button type="submit" disabled>Sign up</button></div><p class="soon">Signups open at launch.</p></form></section>';
 const CSS = `:root{--ink:#141414;--muted:#5F6368;--line:#E8E6E1;--soft:#EFEDE9;--chip:#F1F0ED;--card:#F4F3F0;--red:#B3261E}
@@ -147,6 +148,11 @@ function ago(iso, now) {
   const label = MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate();
   return d.getUTCFullYear() === new Date(now).getUTCFullYear() ? label : label + ', ' + d.getUTCFullYear();
 }
+const ICON_BYTES = {};
+function icon(p) {
+  const bytes = ICON_BYTES[p] || (ICON_BYTES[p] = Uint8Array.from(atob(PNG[p]), c => c.charCodeAt(0)));
+  return new Response(bytes, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=604800' } });
+}
 function html(body, status = 200) {
   return new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' } });
 }
@@ -166,7 +172,7 @@ function redirect(loc, status) {
 function layout({ title, desc, path, preview, body, ld }) {
   const ga = preview ? '' : `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
   const bar = preview ? '<div class="pv" role="note">Private preview &middot; Live headlines in testing, above the archive from Nov 2025 to Feb 2026</div>' : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${e(title)}</title><meta name="description" content="${e(desc)}"><link rel="canonical" href="${SITE}${path}"><meta name="theme-color" content="#ffffff"><meta property="og:site_name" content="CrimeHer"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:url" content="${SITE}${path}"><meta name="twitter:card" content="summary"><link rel="icon" href="${FAVICON}"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=swap"><style>${CSS}${KCSS}</style>${ld ? `<script type="application/ld+json">${ld}</script>` : ''}${ga}</head><body>${bar}<a class="skip" href="#main">Skip to headlines</a>${body}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${e(title)}</title><meta name="description" content="${e(desc)}"><link rel="canonical" href="${SITE}${path}"><meta name="theme-color" content="#ffffff"><meta property="og:site_name" content="CrimeHer"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:url" content="${SITE}${path}"><meta name="twitter:card" content="summary"><link rel="icon" href="${FAVICON}"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="apple-mobile-web-app-title" content="CrimeHer"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=swap"><style>${CSS}${KCSS}</style>${ld ? `<script type="application/ld+json">${ld}</script>` : ''}${ga}</head><body>${bar}<a class="skip" href="#main">Skip to headlines</a>${body}</body></html>`;
 }
 function header(cat) {
   const chip = (href, label, on, key) => `<a class="chip${key ? ' k-' + key : ''}${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}><span>${e(label)}</span></a>`;
@@ -347,6 +353,8 @@ async function route(req, url, env, ctx, preview) {
   if (p === '/robots.txt') return text(preview ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nAllow: /\nDisallow: /desk\nDisallow: /go/\n\nSitemap: ${SITE}/sitemap.xml\n`);
   if (p === '/sitemap.xml') return xml(sitemap());
   if (p === '/llms.txt') return text(llms());
+  if (PNG[p]) return icon(p);
+  if (p === '/site.webmanifest') return new Response(MANIFEST, { headers: { 'content-type': 'application/manifest+json', 'cache-control': 'public, max-age=86400' } });
   if (p === '/status') return json(await status(env));
   const go = p.match(/^\/go\/(\d+)$/);
   if (go) return goTo(env, ctx, req, Number(go[1]), url);
