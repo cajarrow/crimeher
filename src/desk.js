@@ -2,6 +2,8 @@
 // Phone first (iPhone Duo). Locked behind Cloudflare Access: the Worker checks the Access
 // JWT itself, against Craig's team domain, and only lets in emails on DESK_EMAILS.
 
+import { KCSS } from './theme.js';
+
 const CERTS = { team: '', at: 0, keys: [] };
 
 function b64urlBytes(s) {
@@ -69,83 +71,107 @@ function ago(iso, now) {
   return Math.floor(m / 1440) + 'd';
 }
 
-const DESK_CSS = `:root{--ink:#141414;--muted:#5F6368;--line:#E8E6E1;--soft:#F4F3F0;--red:#B3261E;--green:#1E6B3A}
-*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+const DESK_CSS = `:root{--ink:#141414;--muted:#5F6368;--line:#E8E6E1;--soft:#F4F3F0;--fill:#F7F6F3;--red:#B3261E;--redt:#FBEBEB}
+*{box-sizing:border-box}[hidden]{display:none!important}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--soft);color:var(--ink);font:16px/1.4 Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:env(safe-area-inset-bottom)}
 a{color:inherit}
-.top{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 16px 0}
-.row1{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.mark{font-family:Newsreader,Georgia,serif;font-weight:800;font-size:24px;letter-spacing:-.3px;text-decoration:none}
-.mark small{font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-left:6px}
-.stats{font-size:12px;color:var(--muted);text-align:right}
-.tabs{display:flex;gap:4px;margin-top:8px}
-.tab{display:flex;align-items:center;gap:6px;height:44px;padding:0 14px;font-size:15px;font-weight:700;color:var(--muted);text-decoration:none;border-bottom:3px solid transparent}
+.top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.bar{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;flex-wrap:wrap;align-items:center;column-gap:20px}
+.mark{flex:1;display:flex;align-items:center;height:54px;font-family:Newsreader,Georgia,serif;font-weight:800;font-size:24px;letter-spacing:-.3px;text-decoration:none}
+.mark small{font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-left:7px;padding-top:4px}
+.site{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:19px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap}
+.site:hover{border-color:var(--ink)}
+.tabs{order:3;flex-basis:100%;display:flex;gap:2px;margin-left:-12px}
+.tab{display:flex;align-items:center;gap:7px;height:46px;padding:0 12px;font-size:15px;font-weight:700;color:var(--muted);text-decoration:none;border-bottom:3px solid transparent}
+.tab:hover{color:var(--ink)}
 .tab.on{color:var(--ink);border-bottom-color:var(--ink)}
-.tab .n{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--red);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
-main{max-width:1200px;margin:0 auto;padding:12px 12px 32px;display:grid;gap:12px;grid-template-columns:1fr}
-@media (min-width:760px){main{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));padding:16px}}
-.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;transition:opacity .25s,transform .25s}
+.tab .n{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--red);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.tab .n.zero{background:var(--line);color:var(--muted)}
+@media (min-width:760px){.mark{flex:0 0 auto}.tabs{order:0;flex-basis:auto;margin:0}.tab{height:58px}.site{margin-left:auto}}
+main{max-width:1200px;margin:0 auto;padding:12px 12px 40px}
+#list{display:grid;gap:12px;grid-template-columns:1fr;align-items:start}
+@media (min-width:760px){main{padding:20px 16px 48px}#list{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:opacity .25s,transform .25s}
 .card.gone{opacity:0;transform:translateX(24px)}
-.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-select{font:inherit;font-size:13px;font-weight:700;height:32px;padding:0 28px 0 10px;border:0;border-radius:16px;background:var(--soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23141414' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;-webkit-appearance:none;appearance:none;color:var(--ink)}
-textarea{display:block;width:100%;margin:10px 0 4px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:17px;font-weight:600;line-height:1.32;resize:none;field-sizing:content;min-height:3.2em;background:#fff;color:var(--ink)}
-textarea:focus,select:focus{outline:2px solid var(--ink);outline-offset:1px}
-.count{font-size:11px;color:var(--muted);text-align:right}.count.over{color:var(--red);font-weight:700}
-.why{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
-.why span{font-size:12px;font-weight:700;color:var(--red);background:#FBEBEB;border-radius:10px;padding:3px 8px}
-.alts{margin:2px 0 6px}
-.alts span{display:block;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
-.alt{display:block;width:100%;height:auto;min-height:40px;margin:0 0 6px;padding:8px 12px;text-align:left;font-size:14px;font-weight:600;line-height:1.3;background:var(--soft);color:var(--ink);border:1px dashed #CFCCC6;border-radius:10px}
-.src{font-size:13px;color:var(--muted);line-height:1.4}
-.src b{color:var(--ink);font-weight:600}
-.src p{margin:4px 0 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.src a{display:inline-flex;align-items:center;min-height:36px;font-weight:700;color:var(--ink)}
-.acts{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:6px}
-.acts.three{grid-template-columns:1fr 1fr}
-button{font:inherit;font-size:16px;font-weight:700;height:48px;border-radius:12px;cursor:pointer}
+.why{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--red)}
+.why span{background:var(--redt);border-radius:8px;padding:4px 9px}
+.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.meta b{color:var(--ink)}
+.cat{font:inherit;font-size:13px;font-weight:700;height:32px;padding:0 28px 0 12px;border:0;border-radius:16px;background:var(--kt,var(--soft)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23141414' stroke-opacity='.55' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 11px center;color:var(--ki,var(--ink));-webkit-appearance:none;appearance:none;cursor:pointer}
+.hl{display:block;width:100%;margin:0;padding:10px 12px;border:1.5px solid transparent;border-radius:12px;background:var(--fill);font:inherit;font-size:18px;font-weight:700;line-height:1.3;letter-spacing:-.1px;resize:none;field-sizing:content;min-height:3.4em;color:var(--ink)}
+.hl:hover{border-color:var(--line)}
+.hl:focus{outline:none;border-color:var(--ink);background:#fff}
+.cat:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.over{margin-top:-6px;font-size:12px;font-weight:700;color:var(--red)}
+.alts{margin-top:-4px}
+.lbl{display:block;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.lbl i{font-style:normal;font-weight:600;letter-spacing:0;text-transform:none}
+details.alts summary{display:flex;align-items:center;min-height:36px;cursor:pointer;list-style:none}
+details.alts summary::-webkit-details-marker{display:none}
+details.alts summary .lbl{margin:0}
+details.alts summary::after{content:'';width:7px;height:7px;margin-left:8px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg) translateY(-2px);transition:transform .2s}
+details.alts[open] summary::after{transform:rotate(-135deg) translateY(-1px)}
+.alt{display:block;width:100%;min-height:44px;margin:0;padding:9px 12px;text-align:left;font:inherit;font-size:15px;font-weight:600;line-height:1.3;color:#3C4043;background:transparent;border:0;border-left:3px solid var(--line);border-radius:0 10px 10px 0;cursor:pointer}
+.alt:hover{background:var(--fill);border-left-color:var(--ink);color:var(--ink)}
+.alt.swapped{animation:pop .35s}
+@keyframes pop{from{background:#FFF4D6}to{background:transparent}}
+.src{padding-top:10px;border-top:1px solid var(--soft);font-size:13px;line-height:1.4;color:#3C4043}
+.src a{display:inline-flex;align-items:center;min-height:32px;font-weight:700;color:var(--ink);white-space:nowrap}
+.acts{display:grid;grid-template-columns:1fr 1.6fr;gap:8px}
+button{font:inherit;cursor:pointer}
+.btn{height:50px;border-radius:12px;font-size:16px;font-weight:700}
 .no{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+.no:hover{border-color:var(--ink)}
 .yes{background:var(--ink);color:#fff;border:0}
-button:disabled{opacity:.5}
+.is-live .acts{display:flex;justify-content:flex-end}
+.is-live .no{padding:0 22px;color:var(--red)}
+.is-live .yes{display:none;flex:1}
+.is-live.dirty .yes{display:block}
+button:disabled{opacity:.5;cursor:default}
 .empty{grid-column:1/-1;text-align:center;padding:64px 20px;color:var(--muted)}
 .empty b{display:block;font-family:Newsreader,Georgia,serif;font-size:26px;color:var(--ink);margin:12px 0 4px}
 .lock{max-width:520px;margin:40px auto;padding:24px;background:#fff;border:1px solid var(--line);border-radius:16px;line-height:1.5}
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;border-radius:14px;padding:12px 14px 12px 16px;display:flex;gap:14px;align-items:center;font-weight:600;transition:transform .25s;z-index:10;max-width:calc(100% - 32px)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;border-radius:14px;padding:10px 10px 10px 16px;display:flex;gap:14px;align-items:center;font-weight:600;transition:transform .25s;z-index:10;max-width:calc(100% - 32px)}
 .toast.on{transform:translateX(-50%) translateY(0)}
-.toast button{height:36px;padding:0 12px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);font-size:14px}
-@media (prefers-reduced-motion:reduce){.card,.toast{transition:none}}
-.stats-main{max-width:720px;margin:0 auto;padding:12px 12px 40px}
-.chips{display:flex;gap:6px;overflow-x:auto;margin:4px 0 10px;scrollbar-width:none}
-.chip{flex:none;display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:18px;background:#fff;border:1px solid var(--line);font-size:14px;font-weight:700;text-decoration:none;color:var(--ink)}
+.toast button{height:38px;padding:0 14px;border-radius:10px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4);font-size:14px;font-weight:700}
+@media (prefers-reduced-motion:reduce){.card,.toast{transition:none}.alt.swapped{animation:none}}
+.chips{display:flex;gap:6px;overflow-x:auto;margin:0 0 12px;scrollbar-width:none}
+.chip{flex:none;display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:19px;background:#fff;border:1px solid var(--line);font-size:14px;font-weight:700;text-decoration:none;color:var(--ink)}
 .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
-.note{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#FFF8E6;font-size:13px;line-height:1.45;color:#5C4813}
+.note{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#FFF8E6;font-size:13px;line-height:1.45;color:#5C4813}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-.tile{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
-.tv{font-size:28px;font-weight:800;letter-spacing:-.5px;line-height:1.1;font-variant-numeric:tabular-nums}
-.tl{margin-top:2px;font-size:12px;font-weight:600;color:var(--muted)}
-.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
-.panel h2{margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.tile{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.tv{font-size:30px;font-weight:800;letter-spacing:-.6px;line-height:1.1;font-variant-numeric:tabular-nums}
+.tl{margin-top:3px;font-size:13px;font-weight:600;color:var(--muted)}
+.cols{display:grid;gap:12px;align-items:start}
+.stack{display:grid;gap:12px}
+@media (min-width:760px){.tiles{grid-template-columns:repeat(4,1fr);gap:12px}}
+@media (min-width:1024px){.cols{grid-template-columns:3fr 2fr}}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px}
+.panel h2{margin:0 0 10px;font-size:12px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
 .rank{margin:0;padding:0;list-style:none;counter-reset:r}
-.rank li{counter-increment:r;position:relative;padding:10px 0 10px 30px;border-top:1px solid var(--soft)}
-.rank li:first-child{border-top:0}
-.rank li::before{content:counter(r);position:absolute;left:0;top:10px;width:22px;font-size:14px;font-weight:800;color:var(--muted);text-align:right}
-.rank .h{display:block;font-size:15px;font-weight:600;line-height:1.32}
-.rank .m{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.rank li{counter-increment:r;position:relative;padding:11px 0 11px 32px;border-top:1px solid var(--soft)}
+.rank li:first-child{border-top:0;padding-top:4px}
+.rank li::before{content:counter(r);position:absolute;left:0;top:11px;width:22px;font-size:15px;font-weight:800;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.rank li:first-child::before{top:4px}
+.rank .h{display:block;font-size:16px;font-weight:700;line-height:1.3}
+.rank .m{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;font-size:12px;color:var(--muted)}
 .rank .m b{color:var(--ink)}
+.rank .m i{width:8px;height:8px;border-radius:50%;background:var(--k,var(--muted))}
 .bars{margin:0;padding:0;list-style:none}
-.bars li{display:grid;grid-template-columns:7.5em 1fr 3em;align-items:center;gap:10px;min-height:32px}
+.bars li{display:grid;grid-template-columns:8.5em 1fr 2.5em;align-items:center;gap:10px;min-height:34px}
 .bl{font-size:13px;font-weight:600}
-.bt{height:10px;border-radius:0 4px 4px 0;background:var(--soft);overflow:hidden}
-.bf{display:block;height:100%;background:var(--ink);border-radius:0 4px 4px 0}
+.bt{height:10px;border-radius:0 5px 5px 0;background:var(--soft);overflow:hidden}
+.bf{display:block;height:100%;background:var(--k,var(--ink));border-radius:0 5px 5px 0}
 .bv{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
 .plain{margin:0;padding:0;list-style:none}
 .plain li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--soft);font-size:14px}
-.plain li:first-child{border-top:0}
+.plain li:first-child{border-top:0;padding-top:2px}
 .plain b{font-variant-numeric:tabular-nums}
-.none{margin:4px 0;color:var(--muted);font-size:14px}
-@media (min-width:760px){.tiles{grid-template-columns:repeat(4,1fr)}}`;
+.none{margin:4px 0;color:var(--muted);font-size:14px}`;
 
 function page(title, body, script) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><title>${e(title)}</title><meta name="theme-color" content="#ffffff"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="CH Desk"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,800&display=swap"><style>${DESK_CSS}</style></head><body>${body}${script ? `<script>${script}</script>` : ''}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><title>${e(title)}</title><meta name="theme-color" content="#ffffff"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="CH Desk"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,800&display=swap"><style>${DESK_CSS}${KCSS}</style></head><body>${body}${script ? `<script>${script}</script>` : ''}</body></html>`;
 }
 function respond(html, status = 200) {
   return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow' } });
@@ -162,50 +188,60 @@ const REASON_LABEL = {
   'child sexual abuse': 'Child abuse', 'political figure or justice policy': 'Political', 'headline may name a minor': 'May name a minor',
   'identity detail (first two weeks)': 'Identity detail', 'only source is a last-resort outlet': 'Last-resort outlet'
 };
+const LIMIT = 90;
 
 export async function renderDesk(env, url, user, CATS) {
   const now = Date.now();
   const v = url.searchParams.get('view');
   const view = v === 'live' ? 'live' : v === 'stats' ? 'stats' : 'held';
-  const dayAgo = new Date(now - 86400000).toISOString();
+  const heldQ = env.DB.prepare(`SELECT COUNT(*) AS held FROM items WHERE status = 'held'`);
   if (view === 'stats') {
-    const c = (await env.DB.prepare(`SELECT SUM(status = 'held') AS held, SUM(status = 'published' AND published_at > ?) AS live24, SUM(status = 'rejected' AND decided_at > ? AND COALESCE(ai_reason, '') NOT LIKE 'desk:%') AS rej24 FROM items WHERE wp_id IS NULL`).bind(dayAgo, dayAgo).first()) || {};
-    const main = await renderStats(env, url, CATS, now);
-    return respond(page('CrimeHer Desk: Stats', deskHeader('stats', c) + `<main class="stats-main">${main}</main>`));
+    const [held, main] = await Promise.all([heldQ.first(), renderStats(env, url, CATS, now)]);
+    return respond(page('CrimeHer Desk: Stats', deskHeader('stats', held) + `<main class="stats-main">${main}</main>`));
   }
   const [rows, counts] = await env.DB.batch([
     view === 'held'
-      ? env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, summary_raw, hold_reason, flags, source_published_at, decided_at FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
-      : env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, summary_raw, NULL AS hold_reason, flags, source_published_at, published_at AS decided_at FROM items WHERE status = 'published' AND wp_id IS NULL ORDER BY published_at DESC LIMIT 80`),
-    env.DB.prepare(`SELECT SUM(status = 'held') AS held, SUM(status = 'published' AND published_at > ?) AS live24, SUM(status = 'rejected' AND decided_at > ? AND COALESCE(ai_reason, '') NOT LIKE 'desk:%') AS rej24 FROM items WHERE wp_id IS NULL`).bind(dayAgo, dayAgo)
+      ? env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, hold_reason, flags, source_published_at, 0 AS clicks FROM items WHERE status = 'held' ORDER BY decided_at DESC LIMIT 150`)
+      : env.DB.prepare(`SELECT id, url, headline, category, outlet, title_raw, NULL AS hold_reason, flags, source_published_at,
+          (SELECT COUNT(*) FROM clicks c WHERE c.item_id = items.id) AS clicks
+          FROM items WHERE status = 'published' AND wp_id IS NULL ORDER BY published_at DESC LIMIT 80`),
+    heldQ
   ]);
-  const c = counts.results[0] || {};
   const opts = sel => CATS.map(k => `<option value="${k.key}"${k.key === sel ? ' selected' : ''}>${e(k.short)}</option>`).join('');
   const cards = rows.results.map(r => {
     const why = (r.hold_reason || '').split(';').map(s => s.trim()).filter(Boolean).map(s => `<span>${e(REASON_LABEL[s] || s)}</span>`).join('');
-    const len = (r.headline || '').length;
+    const head = r.headline || r.title_raw;
     let alts = [];
-    try { alts = (JSON.parse(r.flags || '{}').options || []).filter(o => o && o !== r.headline).slice(0, 2); } catch { /* no options */ }
-    const altHtml = alts.length ? `<div class="alts"><span>Other versions</span>${alts.map(a => `<button type="button" class="alt" data-alt="${e(a)}">${e(a)}</button>`).join('')}</div>` : '';
+    try { alts = (JSON.parse(r.flags || '{}').options || []).filter(o => o && o !== head).slice(0, 2); } catch { /* no options */ }
+    const altBtns = alts.map(a => `<button type="button" class="alt" data-alt="${e(a)}">${e(a)}</button>`).join('');
+    // Waiting: versions shown open, they're part of the decision. Live: tucked away until needed.
+    const altHtml = !alts.length ? '' : view === 'held'
+      ? `<div class="alts"><span class="lbl">Other versions <i>&middot; tap to swap</i></span>${altBtns}</div>`
+      : `<details class="alts"><summary><span class="lbl">Other versions (${alts.length})</span></summary>${altBtns}</details>`;
+    const facts = [e(r.outlet || ''), ago(r.source_published_at, now)];
+    if (view === 'live') facts.push(`<b>${n0(r.clicks)}</b>&nbsp;${r.clicks === 1 ? 'click' : 'clicks'}`);
     const acts = view === 'held'
-      ? `<div class="acts"><button type="button" class="no" data-act="reject">Reject</button><button type="button" class="yes" data-act="publish">Publish</button></div>`
-      : `<div class="acts three"><button type="button" class="no" data-act="pull">Pull</button><button type="button" class="yes" data-act="save">Save</button></div>`;
-    return `<article class="card" data-id="${r.id}"><div class="meta"><select aria-label="Category">${opts(r.category)}</select><span>${e(r.outlet || '')}</span><span aria-hidden="true">&middot;</span><span>${ago(r.source_published_at, now)}</span></div>
-<textarea rows="2" aria-label="Headline">${e(r.headline || r.title_raw)}</textarea><div class="count${len > 90 ? ' over' : ''}">${len}/90</div>${altHtml}
-${why ? `<div class="why">${why}</div>` : ''}<div class="src"><b>${e(r.title_raw)}</b>${r.summary_raw ? `<p>${e(r.summary_raw)}</p>` : ''}<a href="${e(r.url)}" target="_blank" rel="noopener">Open article &#8599;</a></div>${acts}</article>`;
+      ? `<div class="acts"><button type="button" class="btn no" data-act="reject">Reject</button><button type="button" class="btn yes" data-act="publish">Publish</button></div>`
+      : `<div class="acts"><button type="button" class="btn no" data-act="pull">Pull</button><button type="button" class="btn yes" data-act="save">Save changes</button></div>`;
+    return `<article class="card${view === 'live' ? ' is-live' : ''}" data-id="${r.id}">${why ? `<div class="why">Held:${why}</div>` : ''}
+<div class="meta"><select class="cat k-${e(r.category)}" aria-label="Category">${opts(r.category)}</select><span>${facts.filter(Boolean).join(' &middot; ')}</span></div>
+<textarea class="hl" rows="2" aria-label="Headline">${e(head)}</textarea><div class="over"${head.length > LIMIT ? '' : ' hidden'}>${head.length}/${LIMIT} &middot; too long</div>${altHtml}
+<div class="src"><span class="lbl">Original</span>${e(r.title_raw)} <a href="${e(r.url)}" target="_blank" rel="noopener">Read&nbsp;article&nbsp;&#8599;</a></div>${acts}</article>`;
   }).join('');
   const empty = view === 'held'
     ? `<div class="empty"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#E5F4E4"/><path d="M15 25l6 6 12-14" stroke="#1E6B3A" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><b>All clear</b>Nothing is waiting for you.</div>`
     : `<div class="empty"><b>Nothing live yet</b>New headlines show up here as they publish.</div>`;
-  const body = deskHeader(view, c) + `
-<main id="list">${cards || empty}</main><div class="toast" id="toast" role="status"><span id="tmsg"></span><button type="button" id="undo">Undo</button></div>`;
+  const body = deskHeader(view, counts.results[0]) + `
+<main><div id="list">${cards || empty}</div></main><div class="toast" id="toast" role="status"><span id="tmsg"></span><button type="button" id="undo">Undo</button></div>`;
   return respond(page('CrimeHer Desk', body, DESK_JS(view)));
 }
 
 function deskHeader(view, c) {
+  const held = (c && c.held) || 0;
   const tab = (key, href, label) => `<a class="tab${view === key ? ' on' : ''}" href="${href}"${view === key ? ' aria-current="page"' : ''}>${label}</a>`;
-  return `<header class="top"><div class="row1"><a class="mark" href="/desk">crimeher<small>Desk</small></a><div class="stats">${c.live24 || 0} live today &middot; ${c.rej24 || 0} rejected by AI</div></div>
-<nav class="tabs">${tab('held', '/desk', `Waiting <span class="n" id="n">${c.held || 0}</span>`)}${tab('live', '/desk?view=live', 'Live')}${tab('stats', '/desk?view=stats', 'Stats')}</nav></header>`;
+  return `<header class="top"><div class="bar"><a class="mark" href="/desk">crimeher<small>Desk</small></a>
+<nav class="tabs" aria-label="Desk">${tab('held', '/desk', `Waiting <span class="n${held ? '' : ' zero'}" id="n">${held}</span>`)}${tab('live', '/desk?view=live', 'Live')}${tab('stats', '/desk?view=stats', 'Stats')}</nav>
+<a class="site" href="/" target="_blank" rel="noopener">View site <span aria-hidden="true">&#8599;</span></a></div></header>`;
 }
 
 const PERIODS = { '24h': { label: 'Last 24 hours', ms: 86400000 }, '7d': { label: '7 days', ms: 7 * 86400000 }, '30d': { label: '30 days', ms: 30 * 86400000 } };
@@ -216,7 +252,7 @@ async function renderStats(env, url, CATS, now) {
   const since = new Date(now - PERIODS[key].ms).toISOString();
   const [tot, top, byCat, outlets, pipe] = await env.DB.batch([
     env.DB.prepare(`SELECT COUNT(*) AS clicks, SUM(preview) AS preview FROM clicks WHERE at > ?`).bind(since),
-    env.DB.prepare(`SELECT i.id, i.headline, i.category, COALESCE(i.outlet, 'archive') AS outlet, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY i.id ORDER BY n DESC, MAX(c.at) DESC LIMIT 10`).bind(since),
+    env.DB.prepare(`SELECT i.id, COALESCE(i.headline, i.title_raw) AS headline, i.category, COALESCE(i.outlet, 'archive') AS outlet, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY i.id ORDER BY n DESC, MAX(c.at) DESC LIMIT 10`).bind(since),
     env.DB.prepare(`SELECT i.category AS cat, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY i.category`).bind(since),
     env.DB.prepare(`SELECT COALESCE(i.outlet, 'archive') AS outlet, COUNT(*) AS n FROM clicks c JOIN items i ON i.id = c.item_id WHERE c.at > ? GROUP BY 1 ORDER BY n DESC LIMIT 8`).bind(since),
     env.DB.prepare(`SELECT
@@ -245,12 +281,12 @@ async function renderStats(env, url, CATS, now) {
   ].map(([l, v]) => `<div class="tile"><div class="tv">${v}</div><div class="tl">${l}</div></div>`).join('');
   const short = Object.fromEntries(CATS.map(c => [c.key, c.short]));
   const topHtml = top.results.length
-    ? `<ol class="rank">${top.results.map(r => `<li><span class="h">${e(r.headline)}</span><span class="m"><b>${n0(r.n)}</b> ${r.n === 1 ? 'click' : 'clicks'} &middot; ${e(short[r.category] || r.category)} &middot; ${e(r.outlet)}</span></li>`).join('')}</ol>`
+    ? `<ol class="rank">${top.results.map(r => `<li class="k-${e(r.category)}"><span class="h">${e(r.headline)}</span><span class="m"><i aria-hidden="true"></i><b>${n0(r.n)}</b> ${r.n === 1 ? 'click' : 'clicks'} &middot; ${e(short[r.category] || r.category)} &middot; ${e(r.outlet)}</span></li>`).join('')}</ol>`
     : `<p class="none">No clicks in this period yet.</p>`;
   const catMap = Object.fromEntries(byCat.results.map(r => [r.cat, r.n]));
-  const cats = CATS.map(c => ({ label: c.short, n: catMap[c.key] || 0 })).sort((a, b) => b.n - a.n);
+  const cats = CATS.map(c => ({ key: c.key, label: c.short, n: catMap[c.key] || 0 })).sort((a, b) => b.n - a.n);
   const max = Math.max(1, ...cats.map(c => c.n));
-  const bars = `<ul class="bars" aria-label="Clicks by category">${cats.map(c => `<li title="${e(c.label)}: ${n0(c.n)} clicks"><span class="bl">${e(c.label)}</span><span class="bt"><span class="bf" style="width:${c.n ? Math.max(2, Math.round(c.n / max * 100)) : 0}%"></span></span><span class="bv">${n0(c.n)}</span></li>`).join('')}</ul>`;
+  const bars = `<ul class="bars" aria-label="Clicks by category">${cats.map(c => `<li class="k-${c.key}" title="${e(c.label)}: ${n0(c.n)} clicks"><span class="bl">${e(c.label)}</span><span class="bt"><span class="bf" style="width:${c.n ? Math.max(2, Math.round(c.n / max * 100)) : 0}%"></span></span><span class="bv">${n0(c.n)}</span></li>`).join('')}</ul>`;
   const outl = outlets.results.length
     ? `<ul class="plain">${outlets.results.map(r => `<li><span>${e(r.outlet)}</span><b>${n0(r.n)}</b></li>`).join('')}</ul>`
     : `<p class="none">No clicks in this period yet.</p>`;
@@ -262,25 +298,29 @@ async function renderStats(env, url, CATS, now) {
 <li><span>Pulled by you</span><b>${n0(p.pulled)}</b></li>
 <li><span>Expired unreviewed</span><b>${n0(p.expired)}</b></li></ul>`;
   return `<nav class="chips" aria-label="Period">${chips}</nav>${note}<section class="tiles">${tiles}</section>
-<section class="panel"><h2>Most clicked</h2>${topHtml}</section>
-<section class="panel"><h2>Clicks by category</h2>${bars}</section>
-<section class="panel"><h2>Top outlets clicked</h2>${outl}</section>
-<section class="panel"><h2>Headlines, ${e(PERIODS[key].label.toLowerCase())}</h2>${flow}</section>`;
+<div class="cols"><section class="panel"><h2>Most clicked</h2>${topHtml}</section>
+<div class="stack"><section class="panel"><h2>Clicks by category</h2>${bars}</section>
+<section class="panel"><h2>Headlines, ${e(PERIODS[key].label.toLowerCase())}</h2>${flow}</section>
+<section class="panel"><h2>Top outlets clicked</h2>${outl}</section></div></div>`;
 }
 
-const DESK_JS = view => `(()=>{const L=document.getElementById('list'),N=document.getElementById('n'),T=document.getElementById('toast'),M=document.getElementById('tmsg'),U=document.getElementById('undo');let timer,last;
+// Client script. Plain strings only (no template literals) so it can sit inside this template.
+const DESK_JS = view => `(()=>{const L=document.getElementById('list'),N=document.getElementById('n'),T=document.getElementById('toast'),M=document.getElementById('tmsg'),U=document.getElementById('undo'),V='${view}',MAX=${LIMIT};let timer,last;
 const label={publish:'Published',reject:'Rejected',save:'Saved',pull:'Pulled from the site',restore:'Restored'};
 async function post(b){const r=await fetch('/desk/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json()}
 function toast(msg,undo){M.textContent=msg;U.style.display=undo?'':'none';T.classList.add('on');clearTimeout(timer);timer=setTimeout(()=>T.classList.remove('on'),undo?6000:2500)}
-L.addEventListener('input',ev=>{if(ev.target.tagName!=='TEXTAREA')return;const n=ev.target.value.length,c=ev.target.nextElementSibling;c.textContent=n+'/90';c.classList.toggle('over',n>90)});
-L.addEventListener('click',async ev=>{const alt=ev.target.closest('button[data-alt]');if(alt){const card=alt.closest('.card'),ta=card.querySelector('textarea'),cur=ta.value;ta.value=alt.dataset.alt;alt.dataset.alt=cur;alt.textContent=cur;ta.dispatchEvent(new Event('input',{bubbles:true}));return}const b=ev.target.closest('button[data-act]');if(!b)return;const card=b.closest('.card'),act=b.dataset.act;
-const body={id:+card.dataset.id,action:act,headline:card.querySelector('textarea').value.trim(),category:card.querySelector('select').value};
-card.querySelectorAll('button').forEach(x=>x.disabled=true);
-try{await post(body);if(act==='save'){toast(label.save);card.querySelectorAll('button').forEach(x=>x.disabled=false);return}
-last={card,id:body.id,from:'${view}'};card.classList.add('gone');setTimeout(()=>{card.hidden=true},260);
-if(N&&'${view}'==='held')N.textContent=Math.max(0,(+N.textContent||0)-1);toast(label[act],true)}
-catch(err){card.querySelectorAll('button').forEach(x=>x.disabled=false);toast('Didn\\'t save. Try again.')}});
-U.addEventListener('click',async()=>{if(!last)return;try{await post({id:last.id,action:'restore',to:last.from});last.card.hidden=false;requestAnimationFrame(()=>last.card.classList.remove('gone'));last.card.querySelectorAll('button').forEach(x=>x.disabled=false);if(N&&last.from==='held')N.textContent=(+N.textContent||0)+1;T.classList.remove('on');last=null}catch(e){toast('Couldn\\'t undo.')}});})();`;
+function count(d){if(!N)return;const n=Math.max(0,(+N.textContent||0)+d);N.textContent=n;N.classList.toggle('zero',!n)}
+function measure(ta){const card=ta.closest('.card'),o=card.querySelector('.over'),n=ta.value.trim().length;o.hidden=n<=MAX;o.textContent=n+'/'+MAX+' \\u00b7 too long'}
+L.addEventListener('input',ev=>{const t=ev.target;if(!t.classList.contains('hl'))return;measure(t);t.closest('.card').classList.add('dirty')});
+L.addEventListener('change',ev=>{const t=ev.target;if(!t.classList.contains('cat'))return;t.className='cat k-'+t.value;t.closest('.card').classList.add('dirty')});
+L.addEventListener('click',async ev=>{const alt=ev.target.closest('.alt');if(alt){const card=alt.closest('.card'),ta=card.querySelector('.hl'),cur=ta.value;ta.value=alt.dataset.alt;alt.dataset.alt=cur;alt.textContent=cur;alt.classList.remove('swapped');void alt.offsetWidth;alt.classList.add('swapped');measure(ta);card.classList.add('dirty');return}
+const b=ev.target.closest('button[data-act]');if(!b)return;const card=b.closest('.card'),act=b.dataset.act,btns=card.querySelectorAll('button');
+const body={id:+card.dataset.id,action:act,headline:card.querySelector('.hl').value.trim(),category:card.querySelector('.cat').value};
+btns.forEach(x=>x.disabled=true);
+try{await post(body);if(act==='save'){toast(label.save);card.classList.remove('dirty');btns.forEach(x=>x.disabled=false);return}
+last={card,id:body.id,from:V};card.classList.add('gone');setTimeout(()=>{card.hidden=true},260);if(V==='held')count(-1);toast(label[act],true)}
+catch(err){btns.forEach(x=>x.disabled=false);toast('Didn\\'t save. Try again.')}});
+U.addEventListener('click',async()=>{const x=last;if(!x)return;last=null;try{await post({id:x.id,action:'restore',to:x.from});x.card.hidden=false;requestAnimationFrame(()=>x.card.classList.remove('gone'));x.card.querySelectorAll('button').forEach(b=>b.disabled=false);if(x.from==='held')count(1);T.classList.remove('on')}catch(e){last=x;toast('Couldn\\'t undo.')}});})();`;
 
 // POST /desk/act {id, action, headline?, category?, to?}
 export async function deskAction(req, env, user, CATS) {
