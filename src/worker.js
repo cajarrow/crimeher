@@ -216,6 +216,20 @@ function redirect(loc, status) {
   return new Response(null, { status, headers: { location: loc } });
 }
 
+// /viewport: a check page that shows the browser's width and which layout CrimeHer picks for it.
+// Used to tune layouts on new devices (iPhone Duo postures, iPads). Not linked anywhere; noindex.
+function viewportPage() {
+  const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex"><title>Viewport check</title>
+<style>body{margin:0;padding:24px;font-family:-apple-system,system-ui,sans-serif;color:#141414;background:#fff}h1{font-size:15px;letter-spacing:1.4px;text-transform:uppercase;color:#5F6368;margin:0 0 8px}
+.w{font-size:64px;font-weight:800;line-height:1}.l{margin:10px 0 24px;font-size:22px;font-weight:700}.l b{color:#B3261E}dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;font-size:15px}dt{color:#5F6368}dd{margin:0;word-break:break-all}</style></head>
+<body><h1>CrimeHer viewport check</h1><div class="w" id="w"></div><div class="l" id="l"></div><dl id="d"></dl>
+<script>function r(){const W=innerWidth,H=innerHeight,vv=window.visualViewport;const L=W>=1200?'Full laptop page (two category columns)':W>=900?'Wide: headlines + one category column':W>=640?'Newspaper header, single stream':'Phone layout';
+document.getElementById('w').textContent=W+' × '+H;document.getElementById('l').innerHTML='Layout: <b>'+L+'</b>';
+const rows=[['Screen',screen.width+' × '+screen.height],['Pixel ratio',devicePixelRatio],['Page zoom (visual viewport)',vv?vv.scale.toFixed(2):'n/a'],['Visual viewport',vv?Math.round(vv.width)+' × '+Math.round(vv.height):'n/a'],['Orientation',(screen.orientation&&screen.orientation.type)||String(window.orientation)],['Browser',navigator.userAgent]];
+document.getElementById('d').innerHTML=rows.map(x=>'<dt>'+x[0]+'</dt><dd>'+x[1]+'</dd>').join('')}
+r();addEventListener('resize',r);addEventListener('orientationchange',()=>setTimeout(r,300));</script></body></html>`;
+  return new Response(page, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
+}
 // /card/<id>-og.png and /card/<id>-post.jpg: the story's headline card (src/cards.js), cached at the edge.
 async function cardRoute(req, env, ctx, id, f) {
   const cache = caches.default;
@@ -456,6 +470,7 @@ async function route(req, url, env, ctx, preview) {
   if (p === '/subscribe' && req.method === 'POST') return subscribe(req, env, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') return text('Method not allowed', 405);
   if (p === '/') { const sid = Number(url.searchParams.get('story')); return html(await renderPage(env, null, preview, Number.isInteger(sid) && sid > 0 ? sid : null)); }
+  if (p === '/viewport') return viewportPage();
   const cm = p.match(/^\/card\/(\d+)-(og|post)\.(png|jpg)$/);
   if (cm) return cardRoute(req, env, ctx, Number(cm[1]), cm[2]);
   if (PAGES[p]) {
