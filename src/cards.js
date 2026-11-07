@@ -68,8 +68,9 @@ export async function cardImage(env, item, catName, f, now = Date.now()) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: fmt.w, height: fmt.h, deviceScaleFactor: 1 });
-    await page.setContent(cardHtml(item, catName, f), { waitUntil: 'networkidle0', timeout: 15000 });
-    await page.evaluate(() => document.fonts.ready);
+    await page.setContent(cardHtml(item, catName, f), { waitUntil: 'domcontentloaded', timeout: 20000 });
+    // Wait for the web fonts, but never more than 6 seconds (the card still draws with fallback fonts).
+    await page.evaluate(() => Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 6000))]));
     shot = await page.screenshot(fmt.type === 'jpeg' ? { type: 'jpeg', quality: 90 } : { type: 'png' });
   } finally {
     await browser.close();
