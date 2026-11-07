@@ -9,6 +9,7 @@ import { currentTop, chooseAutoTop } from './top.js';
 import { runProbe } from './probe.js';
 import { PAGES } from './pages.js';
 import { syncContacts, maybeSendBriefing } from './briefing.js';
+import { cardImage, pruneCards, outletName } from './cards.js';
 
 const FEEDS_PER_RUN = 30;   // feeds checked per run; each feed is due every ~15 minutes
 const AI_PER_RUN = 40;      // new items the AI decides per run
@@ -109,6 +110,11 @@ a{color:inherit;text-decoration:none}
 .cat-head p{margin:6px 0 0;font-size:14px;line-height:1.45;color:var(--muted)}
 .more-link{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;font-size:14px;font-weight:700;color:var(--red)}
 .cats{display:none}
+.spot{margin:16px 16px 4px;padding:20px;border-radius:16px;background:var(--kt, var(--card));border-top:4px solid var(--k, var(--ink))}
+.spot-k{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.spot-k .c{color:var(--ki, var(--ink));font-weight:800;letter-spacing:1.2px;text-transform:uppercase}
+.spot h2{margin:10px 0 16px;font-family:Newsreader,Georgia,serif;font-weight:800;font-size:28px;line-height:1.15;letter-spacing:-.3px}
+.spot-go{display:flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border-radius:12px;background:var(--ink);color:#fff;font-size:15px;font-weight:700;text-align:center}
 footer{margin-top:24px;padding:24px 20px 40px;border-top:1px solid var(--line);text-align:center;font-size:12px;line-height:1.6;color:var(--muted)}
 footer p{margin:0}
 /* 640px and up (iPhone Duo open, iPads, laptops): the newspaper masthead and a roomier stream. */
@@ -118,6 +124,10 @@ footer p{margin:0}
 .tag{margin-top:8px;font-size:12px;letter-spacing:2.2px}
 .chips{position:static;justify-content:center;flex-wrap:wrap;overflow:visible;max-width:1280px;margin:0 auto;padding:6px 4%;border-top:3px double var(--ink)}
 .wrap{padding:0 4%}
+.spot{max-width:760px;margin:28px auto 0;padding:28px 32px;text-align:center}
+.spot-k{justify-content:center}
+.spot h2{font-size:36px;line-height:1.12}
+.spot-go{display:inline-flex}
 .top{text-align:center;padding:36px 0 32px}
 .top .kick,.top .meta{justify-content:center}
 .top h2{max-width:920px;margin:14px auto 0;font-size:40px;line-height:1.1;letter-spacing:-.6px}
@@ -206,10 +216,26 @@ function redirect(loc, status) {
   return new Response(null, { status, headers: { location: loc } });
 }
 
-function layout({ title, desc, path, preview, body, ld }) {
+// /card/<id>-og.png and /card/<id>-post.jpg: the story's headline card (src/cards.js), cached at the edge.
+async function cardRoute(req, env, ctx, id, f) {
+  const cache = caches.default;
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  const item = await env.DB.prepare('SELECT id, headline, category, status, published_at, outlet, url, target_url FROM items WHERE id = ? AND wp_id IS NULL').bind(id).first();
+  const c = item && BY_KEY[item.category];
+  let img = null;
+  try { img = await cardImage(env, item, c ? c.short : 'True Crime', f); } catch (err) { console.error('card', id, String(err)); }
+  if (!img) return text('Not found', 404);
+  const res = new Response(img.bytes, { headers: { 'content-type': img.mime, 'cache-control': 'public, max-age=3600' } });
+  ctx.waitUntil(cache.put(req, res.clone()));
+  return res;
+}
+function layout({ title, desc, path, preview, body, ld, og = {} }) {
+  const ogUrl = og.url || SITE + path;
+  const ogImage = og.image || SITE + '/og.png';
   const ga = preview ? '' : `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');</script>`;
   const bar = preview ? '<div class="pv" role="note">Private preview &middot; Live headlines in testing, above the archive from Nov 2025 to Feb 2026</div>' : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${e(title)}</title><meta name="description" content="${e(desc)}"><link rel="canonical" href="${SITE}${path}"><meta name="theme-color" content="#ffffff"><meta property="og:site_name" content="CrimeHer"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:url" content="${SITE}${path}"><meta name="twitter:card" content="summary"><link rel="icon" href="${FAVICON}"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="apple-mobile-web-app-title" content="CrimeHer"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=swap"><style>${CSS}${KCSS}</style>${ld ? `<script type="application/ld+json">${ld}</script>` : ''}${ga}</head><body>${bar}<a class="skip" href="#main">Skip to headlines</a>${body}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${e(title)}</title><meta name="description" content="${e(desc)}"><link rel="canonical" href="${SITE}${path}"><meta name="theme-color" content="#ffffff"><meta property="og:site_name" content="CrimeHer"><meta property="og:type" content="website"><meta property="og:title" content="${e(og.title || title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:url" content="${e(ogUrl)}"><meta property="og:image" content="${e(ogImage)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="${FAVICON}"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="apple-mobile-web-app-title" content="CrimeHer"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=swap"><style>${CSS}${KCSS}</style>${ld ? `<script type="application/ld+json">${ld}</script>` : ''}${ga}</head><body>${bar}<a class="skip" href="#main">Skip to headlines</a>${body}</body></html>`;
 }
 function header(cat) {
   const chip = (href, label, on, key) => `<a class="chip${key ? ' k-' + key : ''}${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}><span>${e(label)}</span></a>`;
@@ -221,13 +247,16 @@ function itemHtml(r, now, showCat) {
   return `<li><a href="/go/${r.id}" target="_blank" rel="noopener"><span class="h">${e(r.headline)}</span><span class="meta">${fresh ? '<span class="n">NEW</span><span aria-hidden="true">&middot;</span>' : ''}${showCat && c ? `<span class="c k-${c.key}">${e(c.short)}</span><span aria-hidden="true">&middot;</span>` : ''}<span>${ago(r.published_at, now)}</span></span></a></li>`;
 }
 
-async function renderPage(env, cat, preview) {
+// storyId: the story a social post linked to (/?story=<id>). It's spotlighted at the top of the front page,
+// with a button to the outlet, and the rest of the board below it. No per-story pages.
+async function renderPage(env, cat, preview, storyId) {
   const now = Date.now();
   const cols = 'id, headline, category, published_at';
   let top = null;
   let pick = null;
   let feed = [];
   let sections = [];
+  let spot = null;
   if (cat) {
     feed = (await env.DB.prepare(`SELECT ${cols} FROM items WHERE status = 'published' AND category = ? ORDER BY published_at DESC LIMIT 50`).bind(cat.key).all()).results;
   } else {
@@ -240,7 +269,9 @@ async function renderPage(env, cat, preview) {
       env.DB.prepare(`SELECT ${cols} FROM (SELECT ${cols}, ROW_NUMBER() OVER (PARTITION BY category ORDER BY published_at DESC) AS rn FROM items WHERE status = 'published') WHERE rn <= 4 ORDER BY published_at DESC`)
     ]);
     top = res[0].results[0] || null;
-    feed = res[1].results.filter(r => !top || r.id !== top.id).slice(0, 40);
+    if (storyId) spot = await env.DB.prepare(`SELECT id, headline, category, published_at, outlet, url, target_url FROM items WHERE id = ? AND status = 'published'`).bind(storyId).first();
+    if (spot && top && top.id === spot.id) top = null;
+    feed = res[1].results.filter(r => (!top || r.id !== top.id) && (!spot || r.id !== spot.id)).slice(0, 40);
     sections = CATS.map(c => ({ c, rows: res[2].results.filter(r => r.category === c.key) }));
   }
   const first = feed.slice(0, 6).map(r => itemHtml(r, now, !cat)).join('');
@@ -248,14 +279,17 @@ async function renderPage(env, cat, preview) {
   const empty = feed.length ? '' : '<p class="empty">Headlines are loading. Check back in a few minutes.</p>';
   const topCat = top && BY_KEY[top.category] ? BY_KEY[top.category].short : '';
   const topHtml = top ? `<section class="top${pick && pick.red && pick.id === top.id ? ' red' : ''}" aria-label="Top story"><div class="kick"><span class="dot"></span><span>Top story</span></div><h2><a href="/go/${top.id}" target="_blank" rel="noopener">${e(top.headline)}</a></h2><div class="meta"><span class="c${top && BY_KEY[top.category] ? ' k-' + top.category : ''}">${e(topCat)}</span><span aria-hidden="true">&middot;</span><span>${ago(top.published_at, now)}</span></div></section>` : '';
+  const spotCat = spot && BY_KEY[spot.category] ? BY_KEY[spot.category].short : '';
+  const spotHtml = spot ? `<section class="spot k-${spot.category}" aria-label="The story you opened"><div class="spot-k"><span class="c k-${spot.category}">${e(spotCat)}</span><span aria-hidden="true">&middot;</span><span>${ago(spot.published_at, now)}</span><span aria-hidden="true">&middot;</span><span>via ${e(outletName(spot.outlet || spot.target_url || spot.url))}</span></div><h2>${e(spot.headline)}</h2><a class="spot-go" href="/go/${spot.id}" target="_blank" rel="noopener">Read the full story<span aria-hidden="true">&nbsp;&#8599;</span></a></section>` : '';
   const catHead = cat ? `<section class="cat-head k-${cat.key}"><h1>${e(cat.full)}</h1><p>${e(cat.desc)}</p></section>` : '<h1 class="sr">CrimeHer: Your Daily True Crime Briefing</h1>';
   const aside = cat ? '' : `<aside class="cats" aria-label="Categories">${sections.map(s => `<section class="cat k-${s.c.key}"><h2><a href="/${s.c.slug}">${e(s.c.short)}</a></h2><ul>${s.rows.map(r => `<li><a href="/go/${r.id}" target="_blank" rel="noopener">${e(r.headline)}</a></li>`).join('')}</ul><a class="more" href="/${s.c.slug}">More ${e(s.c.short)} &rarr;</a></section>`).join('')}</aside>`;
   const label = cat ? cat.short : 'Latest';
-  const body = `${header(cat)}<main id="main" class="wrap${cat ? ' is-cat' : ''}">${catHead}${topHtml}<div class="cols"><section class="feed" aria-label="${e(label)} headlines"><div class="feed-h"><b><span class="dot live"></span>${e(label)}</b><span class="upd">Updates every 15 min</span></div>${empty}<ol class="list">${first}</ol>${SIGNUP}<ol class="list">${rest}</ol>${cat ? '<a class="more-link" href="/">All headlines &rarr;</a>' : ''}</section>${aside}</div></main>${FOOTER}`;
+  const body = `${header(cat)}<main id="main" class="wrap${cat ? ' is-cat' : ''}">${catHead}${spotHtml}${topHtml}<div class="cols"><section class="feed" aria-label="${e(label)} headlines"><div class="feed-h"><b><span class="dot live"></span>${e(label)}</b><span class="upd">Updates every 15 min</span></div>${empty}<ol class="list">${first}</ol>${SIGNUP}<ol class="list">${rest}</ol>${cat ? '<a class="more-link" href="/">All headlines &rarr;</a>' : ''}</section>${aside}</div></main>${FOOTER}`;
   const title = cat ? `${cat.full}: Latest Headlines | CrimeHer` : 'CrimeHer: Your Daily True Crime Briefing';
   const desc = cat ? `${cat.desc} Every headline links to the original reporting.` : HOME_DESC;
   const ld = JSON.stringify({ '@context': 'https://schema.org', '@type': cat ? 'CollectionPage' : 'WebSite', name: cat ? cat.full : 'CrimeHer', url: SITE + (cat ? '/' + cat.slug : '/'), description: desc }).replace(/</g, '\\u003c');
-  return layout({ title, desc, path: cat ? '/' + cat.slug : '/', preview, body, ld });
+  const og = spot ? { url: `${SITE}/?story=${spot.id}`, image: `${SITE}/card/${spot.id}-og.png`, title: `${spot.headline} | CrimeHer` } : {};
+  return layout({ title: spot ? og.title : title, desc: spot ? 'Read it on CrimeHer, your daily true-crime briefing. Every headline links to the original reporting.' : desc, path: cat ? '/' + cat.slug : '/', preview, body, ld, og });
 }
 function notFound(preview) {
   const body = `${header(null)}<main id="main" class="wrap"><section class="cat-head"><h1>Page not found</h1><p>That page isn&#39;t here. <a class="more-link" style="padding:0" href="/">See today&#39;s headlines &rarr;</a></p></section></main>${FOOTER}`;
@@ -323,6 +357,19 @@ async function runScheduled(event, env) {
   try { await chooseAutoTop(env, now); } catch (err) { console.error('top story', String(err)); }
   try { await runProbe(env); } catch (err) { console.error('probe', String(err)); }
   try { await syncContacts(env); } catch (err) { console.error('signup sync', String(err)); }
+  if (new Date(now).getUTCMinutes() === 7) { try { await pruneCards(env, now); } catch (err) { console.error('cards prune', String(err)); } }
+  // Developer check: kv card_request = {"id": 123, "f": "og"} draws that card on the next run and notes the result in card_result.
+  try {
+    const cr = JSON.parse((await getKV(env, 'card_request')) || 'null');
+    if (cr) {
+      await env.DB.prepare("DELETE FROM kv WHERE k = 'card_request'").run();
+      const item = await env.DB.prepare('SELECT id, headline, category, status, published_at, outlet, url, target_url FROM items WHERE id = ?').bind(Number(cr.id)).first();
+      let out;
+      try { const img = await cardImage(env, item, BY_KEY[item && item.category] ? BY_KEY[item.category].short : 'True Crime', cr.f || 'og', now); out = { ok: !!img, bytes: img ? img.bytes.length : 0 }; }
+      catch (err) { out = { ok: false, err: String(err).slice(0, 300) }; }
+      await setKV(env, 'card_result', JSON.stringify({ at: new Date(now).toISOString(), id: cr.id, f: cr.f || 'og', ...out }));
+    }
+  } catch (err) { console.error('card check', String(err)); }
   try { const sent = await maybeSendBriefing(env, now, CATS); if (sent) console.log('briefing', JSON.stringify(sent)); } catch (err) { console.error('briefing', String(err)); }
   const added = feeds.reduce((n, f) => n + (f.added || 0), 0);
   if (!feeds.length && !ai.decided && !ai.errors) return;
@@ -408,7 +455,9 @@ async function route(req, url, env, ctx, preview) {
   }
   if (p === '/subscribe' && req.method === 'POST') return subscribe(req, env, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') return text('Method not allowed', 405);
-  if (p === '/') return html(await renderPage(env, null, preview));
+  if (p === '/') { const sid = Number(url.searchParams.get('story')); return html(await renderPage(env, null, preview, Number.isInteger(sid) && sid > 0 ? sid : null)); }
+  const cm = p.match(/^\/card\/(\d+)-(og|post)\.(png|jpg)$/);
+  if (cm) return cardRoute(req, env, ctx, Number(cm[1]), cm[2]);
   if (PAGES[p]) {
     const pg = PAGES[p];
     return html(layout({ title: pg.title + ' | CrimeHer', desc: pg.desc, path: p, preview, body: `${header(null)}<main id="main" class="wrap"><article class="page">${pg.body}</article></main>${FOOTER}` }));

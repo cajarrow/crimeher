@@ -4,6 +4,10 @@
   "name": "crimeher",
   "main": "src/worker.js",
   "compatibility_date": "2026-10-01",
+  // nodejs_compat is needed by @cloudflare/puppeteer (headline cards, src/cards.js).
+  "compatibility_flags": ["nodejs_compat"],
+  // Cloudflare Browser Rendering draws the headline cards for social posts and link previews.
+  "browser": { "binding": "BROWSER" },
   "workers_dev": true,
   "observability": { "enabled": true },
   "d1_databases": [
