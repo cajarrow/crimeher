@@ -82,6 +82,7 @@ a{color:inherit}
 .top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
 .bar{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;flex-wrap:wrap;align-items:center;column-gap:20px}
 .mark{flex:1;display:flex;align-items:center;height:54px;font-family:Newsreader,Georgia,serif;font-weight:800;font-size:24px;letter-spacing:-.3px;text-decoration:none}
+.mark i{font-style:normal;color:#E0403A}
 .mark small{font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-left:7px;padding-top:4px}
 .site{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:19px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap}
 .site:hover{border-color:var(--ink)}
@@ -235,7 +236,7 @@ function respond(html, status = 200) {
 
 export function lockedPage(env) {
   const why = env.ACCESS_TEAM_DOMAIN ? 'Sign in through Cloudflare Access with an approved email to use the desk.' : 'The desk opens once Cloudflare Access is turned on for this site.';
-  return respond(page('Desk locked', `<div class="lock"><div class="mark">crimeher<small>Desk</small></div><p>${why}</p></div>`), 403);
+  return respond(page('Desk locked', `<div class="lock"><div class="mark">crimeher<i>.</i><small>Desk</small></div><p>${why}</p></div>`), 403);
 }
 
 const REASON_LABEL = {
@@ -327,7 +328,7 @@ function cardHtml(r, view, CATS, now, top) {
 function deskHeader(view, c) {
   const held = (c && c.held) || 0;
   const tab = (key, href, label) => `<a class="tab${view === key ? ' on' : ''}" href="${href}"${view === key ? ' aria-current="page"' : ''}>${label}</a>`;
-  return `<header class="top"><div class="bar"><a class="mark" href="/desk">crimeher<small>Desk</small></a>
+  return `<header class="top"><div class="bar"><a class="mark" href="/desk">crimeher<i>.</i><small>Desk</small></a>
 <nav class="tabs" aria-label="Desk">${tab('held', '/desk', `Waiting <span class="n${held ? '' : ' zero'}" id="n">${held}</span>`)}${tab('live', '/desk?view=live', 'Live')}${tab('stats', '/desk?view=stats', 'Stats')}</nav>
 <a class="site" href="/" target="_blank" rel="noopener">View site <span aria-hidden="true">&#8599;</span></a></div></header>`;
 }

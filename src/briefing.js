@@ -17,7 +17,7 @@ export const BRIEFING = {
 const RESEND = 'https://api.resend.com';
 const PER_CAT = 3;
 const MAX_ITEMS = 12;
-const INK = '#141414', MUTED = '#5F6368', RED = '#B3261E', LINE = '#E8E6E1', SOFT = '#F4F3F0';
+const INK = '#141414', MUTED = '#5F6368', RED = '#B3261E', DOT = '#E0403A', LINE = '#E8E6E1', SOFT = '#F4F3F0';
 const SERIF = "Georgia, 'Times New Roman', serif";
 const SANS = "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
 
@@ -74,7 +74,7 @@ export async function buildBriefing(env, now, CATS) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${SOFT}" style="background-color:${SOFT}"><tr><td align="center" style="padding-top:20px;padding-bottom:28px;padding-left:12px;padding-right:12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px" bgcolor="#FFFFFF"><tr><td style="background-color:#FFFFFF;padding-top:24px;padding-bottom:28px;padding-left:24px;padding-right:24px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tr><td style="padding-bottom:14px;border-bottom:2px solid ${INK}"><a href="${site}/" style="font-family:${SERIF};font-size:30px;line-height:34px;font-weight:800;color:${INK};text-decoration:none">crimeher<span style="color:${RED}">.</span></a>
+<tr><td style="padding-bottom:14px;border-bottom:2px solid ${INK}"><a href="${site}/" style="font-family:${SERIF};font-size:30px;line-height:34px;font-weight:800;color:${INK};text-decoration:none">crimeher<span style="color:${DOT}">.</span></a>
 <p style="margin:4px 0 0 0;font-family:${SANS};font-size:13px;line-height:18px;color:${MUTED}">The Daily Briefing &middot; ${esc(date)}</p></td></tr>
 ${leadHtml}${secHtml}
 <tr><td align="center" style="padding-top:28px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${INK}" style="background-color:${INK};padding-top:13px;padding-bottom:13px;padding-left:22px;padding-right:22px">

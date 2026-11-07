@@ -50,6 +50,7 @@ a{color:inherit;text-decoration:none}
 .pv{background:var(--ink);color:#fff;font-size:12px;line-height:1.45;padding:8px 16px;text-align:center}
 .mast{text-align:center;padding:18px 20px 0}
 .wordmark{display:inline-block;font-family:Newsreader,Georgia,serif;font-weight:800;font-size:38px;line-height:1;letter-spacing:-.5px}
+.wordmark i{font-style:normal;color:#E0403A}
 .tag{margin-top:6px;font-size:11px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted)}
 .chips{position:sticky;top:0;z-index:10;background:#fff;display:flex;gap:6px;overflow-x:auto;padding:6px 16px;border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .chips::-webkit-scrollbar{display:none}
@@ -110,19 +111,18 @@ a{color:inherit;text-decoration:none}
 .cats{display:none}
 footer{margin-top:24px;padding:24px 20px 40px;border-top:1px solid var(--line);text-align:center;font-size:12px;line-height:1.6;color:var(--muted)}
 footer p{margin:0}
-@media (min-width:1024px){
-.mast{padding:36px 20px 18px}
-.wordmark{font-size:64px;letter-spacing:-1px}
-.tag{margin-top:10px;font-size:12px;letter-spacing:2.4px}
+/* 640px and up (iPhone Duo open, iPads, laptops): the newspaper masthead and a roomier stream. */
+@media (min-width:640px){
+.mast{padding:30px 20px 14px}
+.wordmark{font-size:52px;letter-spacing:-.8px}
+.tag{margin-top:8px;font-size:12px;letter-spacing:2.2px}
 .chips{position:static;justify-content:center;flex-wrap:wrap;overflow:visible;max-width:1280px;margin:0 auto;padding:6px 4%;border-top:3px double var(--ink)}
 .wrap{padding:0 4%}
-.top{text-align:center;padding:44px 0 40px}
+.top{text-align:center;padding:36px 0 32px}
 .top .kick,.top .meta{justify-content:center}
-.top h2{max-width:920px;margin:14px auto 0;font-size:52px;line-height:1.08;letter-spacing:-.8px}
+.top h2{max-width:920px;margin:14px auto 0;font-size:40px;line-height:1.1;letter-spacing:-.6px}
 .top .meta{margin-top:14px;font-size:13px}
-.cols{display:flex;gap:48px;align-items:flex-start;padding:32px 0 56px}
-.feed{flex:1 1 0;min-width:0}
-.is-cat .feed{max-width:760px}
+.cols{padding:24px 0 48px}
 .feed-h{padding:0 0 10px;border-bottom:3px solid var(--ink)}
 .list a{padding:14px 0}
 .list .h{font-size:19px;line-height:1.3}
@@ -134,12 +134,28 @@ footer p{margin:0}
 .cat-head{padding:32px 0 0}
 .cat-head h1{font-size:40px}
 .more-link{padding:0}
-.cats{display:grid;flex:0 0 560px;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 32px}
+footer{padding:24px 0 40px}
+}
+/* 900px and up (iPhone Duo open sideways, laptops): headlines beside the category columns. */
+@media (min-width:900px){
+.cols{display:flex;gap:40px;align-items:flex-start;padding:32px 0 56px}
+.feed{flex:1 1 0;min-width:0}
+.is-cat .feed{max-width:760px}
+.cats{display:grid;flex:0 0 300px;grid-template-columns:minmax(0,1fr);gap:32px}
 .cat h2{margin:0;padding-top:10px;border-top:3px solid var(--k, var(--ink));color:var(--ki, var(--ink));font-size:13px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}
 .cat ul{list-style:none;margin:0;padding:0}
 .cat li a{display:block;padding:11px 0;border-bottom:1px solid var(--soft);font-size:15px;font-weight:600;line-height:1.35}
 .cat .more{display:inline-flex;align-items:center;min-height:44px;font-size:13px;font-weight:700;color:var(--ki, var(--red))}
-footer{padding:24px 0 40px}
+}
+/* 1200px and up: the full front page, two category columns. */
+@media (min-width:1200px){
+.mast{padding:36px 20px 18px}
+.wordmark{font-size:64px;letter-spacing:-1px}
+.tag{margin-top:10px;letter-spacing:2.4px}
+.top{padding:44px 0 40px}
+.top h2{font-size:52px;line-height:1.08;letter-spacing:-.8px}
+.cols{gap:48px}
+.cats{flex-basis:560px;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 32px}
 }`;
 
 function e(s) {
@@ -197,7 +213,7 @@ function layout({ title, desc, path, preview, body, ld }) {
 }
 function header(cat) {
   const chip = (href, label, on, key) => `<a class="chip${key ? ' k-' + key : ''}${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}><span>${e(label)}</span></a>`;
-  return `<header class="mast"><a class="wordmark" href="/">crimeher</a><div class="tag">Your Daily True Crime Briefing</div></header><nav class="chips" aria-label="Categories">${chip('/', 'All', !cat)}${CATS.map(c => chip('/' + c.slug, c.short, !!cat && cat.key === c.key, c.key)).join('')}</nav>`;
+  return `<header class="mast"><a class="wordmark" href="/" aria-label="CrimeHer home">crimeher<i aria-hidden="true">.</i></a><div class="tag">Your Daily True Crime Briefing</div></header><nav class="chips" aria-label="Categories">${chip('/', 'All', !cat)}${CATS.map(c => chip('/' + c.slug, c.short, !!cat && cat.key === c.key, c.key)).join('')}</nav>`;
 }
 function itemHtml(r, now, showCat) {
   const fresh = now - Date.parse(r.published_at) < 3600000;
