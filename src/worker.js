@@ -157,6 +157,22 @@ footer{padding:24px 0 40px}
 .cat li a{display:block;padding:11px 0;border-bottom:1px solid var(--soft);font-size:15px;font-weight:600;line-height:1.35}
 .cat .more{display:inline-flex;align-items:center;min-height:44px;font-size:13px;font-weight:700;color:var(--ki, var(--red))}
 }
+/* Wide but short (iPhone Duo open sideways is 951 x 537): a compact masthead and one row of chips,
+   so the headline columns start on the first screen instead of below the fold. */
+@media (min-width:900px) and (max-width:1199px) and (max-height:700px){
+.mast{padding:14px 20px 8px}
+.wordmark{font-size:40px;letter-spacing:-.6px}
+.tag{margin-top:4px;font-size:11px}
+.chips{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;padding:6px 4%}
+.chips::-webkit-scrollbar{display:none}
+.chips>:first-child{margin-left:auto}.chips>:last-child{margin-right:auto}
+.spot{margin-top:16px;padding:20px 28px}
+.spot h2{font-size:28px}
+.top{padding:18px 0 16px}
+.top h2{margin-top:8px;font-size:30px;line-height:1.12}
+.top .meta{margin-top:8px}
+.cols{padding-top:20px}
+}
 /* 1200px and up: the full front page, two category columns. */
 @media (min-width:1200px){
 .mast{padding:36px 20px 18px}
