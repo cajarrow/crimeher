@@ -26,7 +26,7 @@ export function cardHtml(item, catName, f) {
   const { w, h } = CARD_FORMATS[f];
   const [base, tint, ink] = KCOLORS[item.category] || [INK, '#F1F0ED', INK];
   const len = String(item.headline || '').length;
-  const size = f === 'og' ? (len > 80 ? 54 : len > 60 ? 60 : 66) : (len > 80 ? 80 : 92);
+  const size = f === 'og' ? (len > 80 ? 60 : len > 60 ? 66 : 74) : (len > 80 ? 80 : 92);
   const pad = f === 'og' ? 64 : 88;
   return `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Newsreader:opsz,wght@6..72,700;6..72,800&display=block">
